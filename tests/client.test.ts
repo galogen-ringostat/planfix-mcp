@@ -17,6 +17,7 @@ describe("planfixRequest", () => {
     if (origToken !== undefined) process.env.PLANFIX_TOKEN = origToken; else delete process.env.PLANFIX_TOKEN;
     if (origAccount !== undefined) process.env.PLANFIX_ACCOUNT = origAccount; else delete process.env.PLANFIX_ACCOUNT;
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("throws when no auth env is set", async () => {
@@ -25,6 +26,13 @@ describe("planfixRequest", () => {
 
     const { planfixRequest } = await import("../src/client.js");
     await expect(planfixRequest("GET", "task/1")).rejects.toThrow("Не задан ключ авторизации");
+  });
+
+  it("throws when PLANFIX_ACCOUNT is missing", async () => {
+    delete process.env.PLANFIX_ACCOUNT;
+
+    const { planfixRequest } = await import("../src/client.js");
+    await expect(planfixRequest("GET", "task/1")).rejects.toThrow("PLANFIX_ACCOUNT");
   });
 
   it("uses PLANFIX_ACCOUNT for base URL", async () => {
@@ -76,5 +84,45 @@ describe("planfixRequest", () => {
 
     const { planfixRequest } = await import("../src/client.js");
     await expect(planfixRequest("GET", "task/1")).rejects.toThrow("Planfix HTTP 403");
+  });
+
+  it("throws on {result:'fail'} body even at HTTP 200", async () => {
+    const failBody = JSON.stringify({ result: "fail", code: 1000, error: "Task not found by id 1" });
+    const mockResponse = new Response(failBody, { status: 200 });
+    const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixRequest } = await import("../src/client.js");
+    await expect(planfixRequest("GET", "task/1")).rejects.toThrow("Planfix API error 1000: Task not found by id 1");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // non-22 fail is not retried
+  });
+
+  it("retries on logical rate-limit code 22, then succeeds", async () => {
+    vi.useFakeTimers();
+    const fail = () => new Response(JSON.stringify({ result: "fail", code: 22, error: "rate limit" }), { status: 200 });
+    const ok = () => new Response(JSON.stringify({ result: "success", id: 7 }), { status: 200 });
+    const fetchMock = vi.fn().mockResolvedValueOnce(fail()).mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixRequest } = await import("../src/client.js");
+    const promise = planfixRequest("POST", "task/list", {});
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toMatchObject({ result: "success", id: 7 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves a meaningful trailing slash (e.g. task/)", async () => {
+    const mockResponse = new Response(JSON.stringify({ result: "success", id: 5 }), { status: 200 });
+    const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixRequest } = await import("../src/client.js");
+    await planfixRequest("POST", "task/", { name: "x" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/rest\/task\/$/),
+      expect.any(Object),
+    );
   });
 });
