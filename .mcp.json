@@ -4,7 +4,8 @@
       "command": "npx",
       "args": ["-y", "@theyahia/planfix-mcp"],
       "env": {
-        "PLANFIX_TOKEN": ""
+        "PLANFIX_API_KEY": "",
+        "PLANFIX_ACCOUNT": ""
       }
     }
   }

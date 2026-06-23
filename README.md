@@ -1,6 +1,8 @@
+> 📦 Part of **[WWmcp — Emerging Markets MCP](https://github.com/theYahia/WWmcp)** — 114 MCP servers for non-Western APIs (Brazil/MENA/Gulf/SE Asia/Africa/CIS).
+
 # @theyahia/planfix-mcp
 
-MCP-сервер для Planfix API — задачи, проекты, контакты, комментарии. **10 инструментов, 2 навыка.**
+MCP-сервер для Planfix API — задачи, проекты, контакты, комментарии, сотрудники, файлы. **20 инструментов, 2 навыка.**
 
 [![npm](https://img.shields.io/npm/v/@theyahia/planfix-mcp)](https://www.npmjs.com/package/@theyahia/planfix-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -90,26 +92,54 @@ npx -y @smithery/cli install @theyahia/planfix-mcp --client claude
 
 | Переменная | Обязательная | Описание |
 |-----------|-------------|----------|
-| `PLANFIX_API_KEY` | Да | API-ключ. Получите: Настройки > Интеграции > API |
-| `PLANFIX_ACCOUNT` | Рекомендуется | Субдомен (например `mycompany` из `mycompany.planfix.com`) |
+| `PLANFIX_API_KEY` | Да | API-ключ. Создаётся в Управлении аккаунтом → Доступ к API → REST API |
+| `PLANFIX_ACCOUNT` | **Да** | Субдомен (например `mycompany` из `mycompany.planfix.com`). Обязателен — общего хоста у REST API нет |
+| `PLANFIX_HOST` | Нет | Хост для региональных инсталляций (по умолчанию `planfix.com`; например `planfix.ru`) |
 | `PLANFIX_TOKEN` | Нет | Устаревший вариант, используйте `PLANFIX_API_KEY` |
 
-Base URL: `https://{PLANFIX_ACCOUNT}.planfix.com/rest/` (если `PLANFIX_ACCOUNT` задан).
+Base URL: `https://{PLANFIX_ACCOUNT}.{PLANFIX_HOST}/rest/`. Авторизация — заголовок `Authorization: Bearer <key>`.
 
-## Инструменты (10)
+## Инструменты (20)
+
+### Задачи
 
 | Инструмент | Описание |
 |------------|----------|
-| `get_tasks` | Список задач с пагинацией и фильтрами |
+| `get_tasks` | Список задач (пагинация, `fields`, `filterId`, ad-hoc `filters`) |
 | `get_task` | Одна задача по ID |
-| `create_task` | Создание новой задачи |
+| `create_task` | Создание задачи (можно указать проект, исполнителя — см. `list_users`) |
 | `update_task` | Обновление задачи (название, описание, статус, исполнитель) |
-| `get_contacts` | Список контактов с пагинацией и фильтрами |
+
+### Контакты
+
+| Инструмент | Описание |
+|------------|----------|
+| `get_contacts` | Список контактов |
 | `get_contact` | Один контакт по ID |
-| `get_projects` | Список проектов с пагинацией |
+| `create_contact` | Создать контакт или компанию |
+| `update_contact` | Обновить контакт (имя, email, телефон) |
+
+### Проекты, комментарии
+
+| Инструмент | Описание |
+|------------|----------|
+| `get_projects` | Список проектов |
 | `get_project` | Один проект по ID |
 | `get_comments` | Комментарии к задаче |
 | `add_comment` | Добавить комментарий к задаче |
+
+### Сотрудники, справочники, поля, файлы
+
+| Инструмент | Описание |
+|------------|----------|
+| `list_users` | Список сотрудников — **используйте для поиска ID исполнителя по имени** |
+| `get_user` | Один сотрудник по ID |
+| `list_directories` | Справочники (наборы статусов задач хранятся как справочники) |
+| `list_directory_entries` | Записи справочника по его ID (например, варианты статусов) |
+| `list_custom_fields` | Кастомные поля по типу объекта (`task`/`contact`/`project`/`user`/`main`) |
+| `list_datatags` | Дата-теги |
+| `upload_file_from_url` | Загрузить файл по прямой ссылке |
+| `get_file` | Метаданные файла по ID |
 
 ## Навыки (Skills / Prompts) (2)
 
@@ -118,21 +148,45 @@ Base URL: `https://{PLANFIX_ACCOUNT}.planfix.com/rest/` (если `PLANFIX_ACCOU
 | `skill-my-tasks` | "Мои задачи на сегодня" — показывает задачи с дедлайном сегодня или просроченные |
 | `skill-create-task` | "Создай задачу в проекте" — пошаговый помощник для создания задачи с выбором проекта |
 
+## Статусы задач
+
+Отдельного эндпоинта `/taskstatus/list` в Planfix нет. Системные статусы — фиксированный
+набор констант: `DRAFT, ACTIVE, ACCEPTED, COMPLETED, DELAYED, REJECTED, DONE, CANCELED`.
+Кастомные наборы статусов настраиваются как справочники — перечислить их можно через
+`list_directories` → `list_directory_entries`.
+
 ## Примеры
 
 ```
 Покажи мои задачи в Planfix
-Создай задачу "Подготовить отчёт" в проекте 123
+Найди сотрудника Иванов и создай задачу "Подготовить отчёт" в проекте 123 с ним как исполнителем
 Список контактов
 Покажи проекты
 Добавь комментарий к задаче 456: "Готово"
 ```
 
+## 🚀 Demo prompts
+
+> **Use case (RU):** "Создай задачу 'Звонок клиенту' в Planfix, привяжи к сделке #12345"
+
+🤖 **Pairs well with:**
+- [`@theyahia/kaiten-mcp`](https://github.com/theYahia/kaiten-mcp)
+- [`@theyahia/megaplan-mcp`](https://github.com/theYahia/megaplan-mcp)
+- [`@theyahia/yandex-tracker-mcp`](https://github.com/theYahia/yandex-tracker-mcp)
+
+## Ограничения
+
+- **`priority` в `create_task`** передаётся как строка «как есть» — точные допустимые
+  значения не верифицированы против live API.
+- Прямая загрузка файлов с диска (multipart `POST /file/`) и эндпоинты
+  time-tracking/actions не реализованы (REST-контракт не подтверждён). Доступна загрузка
+  файла по ссылке (`upload_file_from_url`).
+
 ## Разработка
 
 ```bash
 npm install
-npm test        # Vitest (17 тестов)
+npm test        # Vitest (32 теста)
 npm run dev     # tsx watch
 npm run build   # TypeScript compile
 ```
@@ -150,3 +204,7 @@ npm run build   # TypeScript compile
 ## Лицензия
 
 MIT
+
+---
+
+⭐ **Star if you build with Planfix** — helps other devs find this server.
