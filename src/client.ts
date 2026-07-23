@@ -8,8 +8,8 @@ function getBaseUrl(): string {
   const account = process.env.PLANFIX_ACCOUNT;
   if (!account) {
     throw new Error(
-      "Не задан PLANFIX_ACCOUNT — субдомен аккаунта (например `mycompany` из mycompany.planfix.com). " +
-      "Субдомен обязателен: Planfix REST API не имеет общего хоста, точка входа — https://<account>.planfix.com/rest/.",
+      "PLANFIX_ACCOUNT is not set — the account subdomain (e.g. `mycompany` from mycompany.planfix.com). " +
+      "The subdomain is required: the Planfix REST API has no shared host; the entry point is https://<account>.planfix.com/rest/.",
     );
   }
   // Allow a custom host suffix for regional installs (e.g. PLANFIX_HOST=planfix.ru).
@@ -25,8 +25,8 @@ function getAuthHeader(): string {
   if (token) return `Bearer ${token}`;
 
   throw new Error(
-    "Не задан ключ авторизации. Установите PLANFIX_API_KEY (или устаревший PLANFIX_TOKEN). " +
-    "Ключ создаётся в Управлении аккаунтом → Доступ к API → REST API.",
+    "No API key is set. Set PLANFIX_API_KEY (or the legacy PLANFIX_TOKEN). " +
+    "The key is created in Account Management → API Access → REST API.",
   );
 }
 
@@ -77,10 +77,10 @@ export async function planfixRequest(
         // `result` field so a `{result:"fail"}` body is never mistaken for success.
         if (isFailEnvelope(parsed)) {
           const code = parsed.code;
-          const errMsg = parsed.error ?? "неизвестная ошибка";
+          const errMsg = parsed.error ?? "unknown error";
           if (code === RATE_LIMIT_CODE && attempt < MAX_RETRIES) {
             const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
-            console.error(`[planfix-mcp] rate limit (code 22), повтор через ${delay}мс (${attempt}/${MAX_RETRIES})`);
+            console.error(`[planfix-mcp] rate limit (code 22), retrying in ${delay}ms (${attempt}/${MAX_RETRIES})`);
             await new Promise((r) => setTimeout(r, delay));
             continue;
           }
@@ -92,7 +92,7 @@ export async function planfixRequest(
 
       if ((response.status === 429 || response.status >= 500) && attempt < MAX_RETRIES) {
         const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
-        console.error(`[planfix-mcp] ${response.status}, повтор через ${delay}мс (${attempt}/${MAX_RETRIES})`);
+        console.error(`[planfix-mcp] ${response.status}, retrying in ${delay}ms (${attempt}/${MAX_RETRIES})`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -102,13 +102,13 @@ export async function planfixRequest(
     } catch (error) {
       clearTimeout(timer);
       if (error instanceof DOMException && error.name === "AbortError" && attempt < MAX_RETRIES) {
-        console.error(`[planfix-mcp] Таймаут, повтор (${attempt}/${MAX_RETRIES})`);
+        console.error(`[planfix-mcp] Timeout, retrying (${attempt}/${MAX_RETRIES})`);
         continue;
       }
       throw error;
     }
   }
-  throw new Error("Planfix API: все попытки исчерпаны");
+  throw new Error("Planfix API: all retry attempts exhausted");
 }
 
 /** POST shorthand. */

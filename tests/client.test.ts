@@ -20,19 +20,43 @@ describe("planfixRequest", () => {
     vi.useRealTimers();
   });
 
-  it("throws when no auth env is set", async () => {
+  it("throws in English when no auth env is set", async () => {
     delete process.env.PLANFIX_API_KEY;
     delete process.env.PLANFIX_TOKEN;
 
     const { planfixRequest } = await import("../src/client.js");
-    await expect(planfixRequest("GET", "task/1")).rejects.toThrow("Не задан ключ авторизации");
+    const err = await planfixRequest("GET", "task/1").then(
+      () => { throw new Error("expected a missing-key error"); },
+      (e: Error) => e,
+    );
+    expect(err.message).toContain("PLANFIX_API_KEY");
+    expect(err.message).not.toMatch(/[а-яА-ЯёЁ]/);
   });
 
-  it("throws when PLANFIX_ACCOUNT is missing", async () => {
+  it("throws in English when PLANFIX_ACCOUNT is missing", async () => {
     delete process.env.PLANFIX_ACCOUNT;
 
     const { planfixRequest } = await import("../src/client.js");
-    await expect(planfixRequest("GET", "task/1")).rejects.toThrow("PLANFIX_ACCOUNT");
+    const err = await planfixRequest("GET", "task/1").then(
+      () => { throw new Error("expected a missing-account error"); },
+      (e: Error) => e,
+    );
+    expect(err.message).toContain("PLANFIX_ACCOUNT");
+    expect(err.message).not.toMatch(/[а-яА-ЯёЁ]/);
+  });
+
+  it("fail envelope without an error field falls back to English 'unknown error'", async () => {
+    const failBody = JSON.stringify({ result: "fail", code: 1001 });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(failBody, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixRequest } = await import("../src/client.js");
+    const err = await planfixRequest("GET", "task/1").then(
+      () => { throw new Error("expected a fail-envelope error"); },
+      (e: Error) => e,
+    );
+    expect(err.message).toBe("Planfix API error 1001: unknown error");
+    expect(err.message).not.toMatch(/[а-яА-ЯёЁ]/);
   });
 
   it("uses PLANFIX_ACCOUNT for base URL", async () => {

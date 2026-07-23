@@ -124,8 +124,15 @@ export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema
 //   type 2  — assignee;  value is the prefixed string "user:<id>"
 //   type 10 — status;    value is the numeric status id
 //   type 5  — project;   value is the numeric project id
-//   type 38 — date of last change; operator "gt",
+//   type 79 — date of latest change OR comment; operator "gt",
 //             value { dateType: "otherDate", dateValue: "DD-MM-YYYY" }
+//             Type 79 over type 38 ("latest change" only) is deliberate: the
+//             primary consumer is the task-mirror sync, where a new comment
+//             must count as task activity — type 38 misses comment-only
+//             activity. The `dateValue` field name was verified live against
+//             production (boundary test 2026-07-24: 2026-07-23 matches,
+//             2026-07-25 empty); the docs' "dateFrom" is wrong or an
+//             alternative.
 // Filters combine with AND.
 
 const SEARCH_FIELDS = "id,name,status,assignees,project";
@@ -139,7 +146,7 @@ export const searchTasksSchema = z.object({
   updatedSince: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "updatedSince must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
     .optional()
-    .describe("Только задачи, изменённые после этой даты (ISO, YYYY-MM-DD)"),
+    .describe("Только задачи с изменениями или комментариями после этой даты (ISO, YYYY-MM-DD)"),
   offset: z.number().int().min(0).optional().describe("Смещение для пагинации (по умолчанию 0)"),
   pageSize: z.number().int().min(1).max(100).optional()
     .describe(`Результатов на странице (по умолчанию ${DEFAULT_SEARCH_PAGE_SIZE}, максимум 100)`),
@@ -153,7 +160,7 @@ export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema
   if (params.projectId !== undefined) filters.push({ type: 5, operator: "equal", value: params.projectId });
   if (params.updatedSince !== undefined) {
     const [y, m, d] = params.updatedSince.split("-");
-    filters.push({ type: 38, operator: "gt", value: { dateType: "otherDate", dateValue: `${d}-${m}-${y}` } });
+    filters.push({ type: 79, operator: "gt", value: { dateType: "otherDate", dateValue: `${d}-${m}-${y}` } });
   }
 
   if (filters.length === 0) {

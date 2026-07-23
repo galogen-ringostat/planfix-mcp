@@ -248,6 +248,7 @@ describe("refusal messages never instruct the agent to disable the guard", () =>
         (err: Error) => { message = err.message; },
       );
       expect(message).toContain("Safe mode:");
+      expect(message).not.toMatch(/[а-яА-ЯёЁ]/); // English-errors rule (CLAUDE.md)
       expect(message).not.toContain("unset PLANFIX_SAFE_MODE");
       expect(message.toLowerCase()).not.toContain("disable the guard");
       expect(message.toLowerCase()).not.toMatch(/without (planfix_)?safe.mode/);

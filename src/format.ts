@@ -236,7 +236,7 @@ export function formatTaskSearchList(resp: unknown, pageSize: number, offset: nu
   const hasMore = items.length > pageSize;
   const shown = hasMore ? items.slice(0, pageSize) : items;
   if (shown.length === 0) {
-    return "Задачи: ничего не найдено по заданным фильтрам. has_more: false. Попробуйте ослабить фильтры (например, убрать updatedSince или сократить nameContains).";
+    return "No tasks matched the given filters. has_more: false. Try relaxing the filters (e.g. drop updatedSince or shorten nameContains).";
   }
   const body = shown.map((it, i) => `${offset + i + 1}. ${taskSearchRow(obj(it) ?? {})}`).join("\n");
   const footer = hasMore

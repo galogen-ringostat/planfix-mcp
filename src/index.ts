@@ -183,7 +183,7 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Найти задачи по фильтрам (комбинируются по AND): подстрока названия (nameContains), исполнитель (assigneeId), " +
-        "статус (statusId), проект (projectId), изменённые после даты (updatedSince, ISO YYYY-MM-DD). " +
+        "статус (statusId), проект (projectId), изменённые или прокомментированные после даты (updatedSince, ISO YYYY-MM-DD). " +
         "Нужен минимум один фильтр; для просмотра всех задач без фильтров используй get_tasks. " +
         "Предпочитай search_tasks листанию get_tasks, когда ищешь конкретные задачи. " +
         'Пример входа: { nameContains: "отчёт", projectId: 572465, updatedSince: "2026-07-01" }.',

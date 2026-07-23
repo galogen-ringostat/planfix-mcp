@@ -127,12 +127,14 @@ describe("search_tasks", () => {
     }));
   });
 
-  it("maps updatedSince to filter type 38, operator gt, DD-MM-YYYY", async () => {
+  it("maps updatedSince to filter type 79 (change OR comment date), operator gt, DD-MM-YYYY", async () => {
+    // Type 79, not 38: the task-mirror sync must treat a new comment as task
+    // activity; type 38 (latest change only) misses comment-only activity.
     mockPost.mockResolvedValue({ tasks: [] });
     const { handleSearchTasks } = await import("../src/tools/tasks.js");
     await handleSearchTasks({ updatedSince: "2026-07-01" });
     expect(mockPost).toHaveBeenCalledWith("task/list", expect.objectContaining({
-      filters: [{ type: 38, operator: "gt", value: { dateType: "otherDate", dateValue: "01-07-2026" } }],
+      filters: [{ type: 79, operator: "gt", value: { dateType: "otherDate", dateValue: "01-07-2026" } }],
     }));
   });
 
@@ -157,6 +159,38 @@ describe("search_tasks", () => {
     expect(mockPost).not.toHaveBeenCalled();
   });
 
+  it("error and hint strings contain no Cyrillic (CLAUDE.md English-errors rule)", async () => {
+    const { handleSearchTasks, handleGetTaskFull } = await import("../src/tools/tasks.js");
+
+    // unfiltered refusal
+    const err = await handleSearchTasks({}).then(
+      () => { throw new Error("expected the unfiltered refusal"); },
+      (e: Error) => e,
+    );
+    expect(err.message).not.toMatch(/[а-яА-ЯёЁ]/);
+
+    // empty-result relax-the-filters hint
+    mockPost.mockResolvedValueOnce({ tasks: [] });
+    const empty = await handleSearchTasks({ nameContains: "zzz" });
+    expect(empty).not.toMatch(/[а-яА-ЯёЁ]/);
+
+    // truncated-page footer (has_more + next offset); data labels excluded by
+    // rendering tasks with English-only field values
+    mockPost.mockResolvedValueOnce({ tasks: [{ id: 1, name: "a" }, { id: 2, name: "b" }] });
+    const page = await handleSearchTasks({ nameContains: "a", pageSize: 1 });
+    const searchFooter = page.split("\n").at(-1)!;
+    expect(searchFooter).toContain("has_more: true");
+    expect(searchFooter).not.toMatch(/[а-яА-ЯёЁ]/);
+
+    // get_task_full truncation footer
+    mockGet.mockResolvedValue({ task: { id: 7, name: "t" } });
+    mockPost.mockResolvedValueOnce({ comments: comments(2) });
+    const full = await handleGetTaskFull({ taskId: 7, commentsLimit: 1 });
+    const fullFooter = full.split("\n").at(-1)!;
+    expect(fullFooter).toContain("has_more: true");
+    expect(fullFooter).not.toMatch(/[а-яА-ЯёЁ]/);
+  });
+
   it("renders compact rows and has_more with next offset when truncated", async () => {
     mockPost.mockResolvedValue({ tasks: tasks(3) }); // pageSize 2 → 3 rows returned
     const { handleSearchTasks } = await import("../src/tools/tasks.js");
@@ -175,7 +209,7 @@ describe("search_tasks", () => {
     const { handleSearchTasks } = await import("../src/tools/tasks.js");
     expect(await handleSearchTasks({ projectId: 1, pageSize: 5 })).toContain("has_more: false");
     mockPost.mockResolvedValueOnce({ tasks: [] });
-    expect(await handleSearchTasks({ nameContains: "zzz" })).toContain("ничего не найдено");
+    expect(await handleSearchTasks({ nameContains: "zzz" })).toContain("No tasks matched");
   });
 
   it("rejects a malformed updatedSince via Zod with an actionable message", async () => {
