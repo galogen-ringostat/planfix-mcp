@@ -112,12 +112,20 @@ computed by Planfix); field 173 resolved to `user:403` "Dmytro Galogen Halahan".
 - Data tag 59 entry key `127822` (comment `47856597`) on that task, 10:00–10:30 24-07-2026,
   user 403, comment "[MCP-TEST] P2 spike probe entry".
 
-## Open questions
+## Open questions — RESOLVED by design review (2026-07-24)
 
-1. Confirm with the operator that data tag **59 "Time spent"** is the analytic RevOps actually
-   logs into (the brief said "Time spent RevOps"; no data tag carries that exact name, and 59
-   sits in the Marketing group — sample entries on it were Marketing tasks).
-2. Should `add_time_entry` default `userId` to the operator's own user (403) or always require
-   it explicitly? Explicit is safer against silently logging time as the wrong person.
-3. Whether the mandatory "Scoring"-adjacent workflow needs field 199 exposed (it is optional in
-   the definition and was omitted successfully).
+1. **Data tag 59 confirmed.** The reviewing session verified empirically that the operator's
+   real 2026-07-20 backfill entries on task 425626 use dataTag id 59 (multiple entries per
+   comment), despite the "Time spent RevOps" working name and the Marketing group label.
+2. **`userId` is required, no default**; its description points to `list_users`.
+3. **Field 199 "Scoring" is not exposed.**
+
+Review addition: `add_time_entry` takes an optional `commentId` — when present, the entry is
+appended to that existing comment via `POST /task/{id}/datatags/{commentId}`. The operator's
+logging convention is one comment per logging period holding several entries (verified on task
+425626: six entries on one comment); the tool result always returns both the entry key and the
+commentId so subsequent entries can chain onto the same comment.
+
+Post-spike API note: the `POST /datatag/{id}/entry/list` body accepts a native `taskId`
+parameter (per swagger) — `get_task_time_entries` uses server-side task scoping, not the
+client-side filtering fallback the original design contemplated.

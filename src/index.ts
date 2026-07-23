@@ -14,6 +14,7 @@ import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchem
 import { listCustomFieldsSchema, handleListCustomFields } from "./tools/customfields.js";
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
+import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries } from "./tools/timeentries.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
 
 const VERSION = "1.2.0";
@@ -193,6 +194,35 @@ export function createPlanfixServer(): McpServer {
     async (params) => ({ content: [{ type: "text", text: await handleSearchTasks(params) }] }),
   );
 
+  server.registerTool(
+    "add_time_entry",
+    {
+      description:
+        "Записать затраченное время в задачу (аналитика «Time spent»). " +
+        "Конвенция логирования: ОДИН комментарий на период логирования, внутри него несколько записей. " +
+        "Первый вызов делай без commentId — Planfix создаст новый комментарий-период; " +
+        "из результата возьми commentId и передавай его в последующие вызовы, чтобы записи ложились в тот же комментарий. " +
+        "Перед первым вызовом проверь через get_task_time_entries, нет ли уже комментария-периода. " +
+        'Пример входа: { taskId: 123, date: "2026-07-24", timeFrom: "10:00", timeTo: "10:30", type: "Task", comment: "правки по тексту", userId: 403 }.',
+      inputSchema: addTimeEntrySchema.shape,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (params) => ({ content: [{ type: "text", text: await handleAddTimeEntry(params) }] }),
+  );
+
+  server.registerTool(
+    "get_task_time_entries",
+    {
+      description:
+        "Получить записи затраченного времени задачи (аналитика «Time spent»): key, дата, интервал, длительность, сотрудник, тип, комментарий, commentId. " +
+        "Используй перед add_time_entry, чтобы найти существующий комментарий-период (commentId) и не плодить новые комментарии. " +
+        "Пример входа: { taskId: 123 }.",
+      inputSchema: getTaskTimeEntriesSchema.shape,
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (params) => ({ content: [{ type: "text", text: await handleGetTaskTimeEntries(params) }] }),
+  );
+
   skillMyTasks(server);
   skillCreateTask(server);
 
@@ -268,7 +298,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} запущен. 22 инструмента, 2 навыка. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} запущен. 24 инструмента, 2 навыка. Stdio.`);
   }
 }
 

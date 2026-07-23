@@ -245,6 +245,63 @@ export function formatTaskSearchList(resp: unknown, pageSize: number, offset: nu
   return `Задачи (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
+// ── Time entries (get_task_time_entries) ─────────────────────────────────────
+
+/** Pick a custom field's {value, stringValue} off a data tag entry by field id. */
+function cfValue(e: Json, fieldId: number): { value?: unknown; str?: string } {
+  const data = Array.isArray(e.customFieldData) ? (e.customFieldData as unknown[]) : [];
+  for (const item of data) {
+    const o = obj(item);
+    if (obj(o?.field)?.id === fieldId) return { value: o?.value, str: val(o?.stringValue) };
+  }
+  return {};
+}
+
+function durationHM(sec: unknown): string | undefined {
+  if (typeof sec !== "number" || sec <= 0) return undefined;
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+/**
+ * Compact time-entry rows with exact pagination metadata. `resp` is expected to
+ * hold up to `pageSize + 1` entries (the caller over-fetches one row). Field
+ * ids are passed in by the caller (they are data-tag-specific).
+ */
+export function formatTimeEntryList(
+  resp: unknown,
+  pageSize: number,
+  offset: number,
+  f: { date: number; time: number; user: number; type: number; comment: number },
+): string {
+  const items = findArray(resp, ["dataTagEntries", "entries"]);
+  if (!items) return jsonFallback(resp);
+  const hasMore = items.length > pageSize;
+  const shown = hasMore ? items.slice(0, pageSize) : items;
+  if (shown.length === 0) return "No time entries found on this task. has_more: false";
+  const body = shown
+    .map((it, i) => {
+      const e = obj(it) ?? {};
+      const time = cfValue(e, f.time);
+      const dur = durationHM(obj(time.value)?.durationSec);
+      return `${offset + i + 1}. ${line([
+        `#${val(e.key) ?? "?"}`,
+        cfValue(e, f.date).str,
+        time.str && `${time.str}${dur ? ` (${dur})` : ""}`,
+        cfValue(e, f.user).str,
+        cfValue(e, f.type).str,
+        cfValue(e, f.comment).str,
+        val(e.commentId) && `commentId: ${val(e.commentId)}`,
+      ])}`;
+    })
+    .join("\n");
+  const footer = hasMore
+    ? `has_more: true — next page: get_task_time_entries with offset: ${offset + pageSize}.`
+    : "has_more: false";
+  return `Записи времени (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+}
+
 // ── Directories / custom fields / datatags ───────────────────────────────────────
 
 export function formatDirectoryList(resp: unknown): string {
