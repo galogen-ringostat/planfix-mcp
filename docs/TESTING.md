@@ -26,7 +26,7 @@ npx @modelcontextprotocol/inspector node dist/index.js
 1. Create a Planfix project named **`MCP-TEST`** in the UI (the API/MCP cannot create projects).
 2. Record its ID here and in the local env: `PLANFIX_TEST_PROJECT_ID=<id>`.
 
-Current value: `PLANFIX_TEST_PROJECT_ID=` **(TBD — project not created yet as of 2026-07-24)**.
+Current value: `PLANFIX_TEST_PROJECT_ID=572465` (project `MCP-Test`, created by Galogen 2026-07-24).
 
 ### Rules for every live test run
 
