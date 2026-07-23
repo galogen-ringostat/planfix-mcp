@@ -21,8 +21,10 @@ const VERSION = "1.2.0";
 
 const READ_ONLY = { readOnlyHint: true, idempotentHint: true } as const;
 const ADDITIVE_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false } as const;
-// update_* overwrite fields but the same payload converges to the same state.
-const IDEMPOTENT_UPDATE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true } as const;
+// update_* overwrite prior field values — per MCP semantics (destructiveHint:
+// false = "only additive updates") that is destructive; the same payload still
+// converges to the same state, so idempotent.
+const IDEMPOTENT_UPDATE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true } as const;
 
 export function createPlanfixServer(): McpServer {
   const server = new McpServer({

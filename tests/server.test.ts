@@ -52,10 +52,10 @@ describe("createPlanfixServer (tools/list over an in-memory transport)", () => {
     }
   });
 
-  it("annotates update tools non-readonly, non-destructive, idempotent", () => {
+  it("annotates update tools non-readonly, DESTRUCTIVE (they overwrite prior values), idempotent", () => {
     for (const name of IDEMPOTENT_UPDATE_TOOLS) {
       const t = tools.find((x) => x.name === name)!;
-      expect(t.annotations, name).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: true });
+      expect(t.annotations, name).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: true });
     }
   });
 
