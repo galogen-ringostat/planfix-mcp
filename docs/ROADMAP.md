@@ -15,6 +15,7 @@ Development loop: friction observed in a live session → item recorded here →
 
 3. **Investigate, then implement, writing time entries** (analytics/datatags on tasks).
    Friction: time logging is fully manual today; a 2026-07 attempt to write time entries via MCP failed — root cause never diagnosed (tool gap vs API gap). Step 1 is a spike: determine whether Planfix REST can create the "time spent" analytics records at all (safe-mode ON, MCP-Test project only). Only if yes, design the tool. Highest-value item in the file if the API allows it.
+   **Spike done 2026-07-24 — verdict: TOOL GAP.** The REST API writes time entries fine (data tag 59 "Time spent" via `POST /task/{id}/datatags/`; verified round-trip on MCP-Test task 572467, entry key 127822). Full evidence, request/response shapes, and the proposed `add_time_entry` tool design: `docs/spikes/time-entries.md`. Implementation awaits design review (open question: confirm data tag 59 is the RevOps analytic).
 
 ## P3 — hygiene per Anthropic checklist (background, batch with other work)
 
