@@ -66,12 +66,24 @@ describe("add_time_entry", () => {
   });
 
   it("with commentId posts to task/:id/datatags/:commentId (append to logging-period comment)", async () => {
-    mockPost.mockResolvedValue({ result: "success", keys: [127900], commentId: 555 });
+    // Real append-endpoint response has NO commentId field (verified live,
+    // entry 127824): { result, keys } only. The ack echoes the input commentId.
+    mockPost.mockResolvedValue({ result: "success", keys: [127900] });
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     const result = await handleAddTimeEntry({ ...VALID_ENTRY, commentId: 555 });
     expect(mockPost).toHaveBeenCalledWith("task/9/datatags/555", EXPECTED_BODY);
+    expect(result).toContain("✓ Time entry created");
     expect(result).toContain("key 127900");
     expect(result).toContain("commentId 555");
+    expect(result).toContain("commentId: 555"); // chaining hint still correct
+  });
+
+  it("append path with no keys in the response still falls back to raw JSON", async () => {
+    mockPost.mockResolvedValue({ result: "success" });
+    const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
+    const result = await handleAddTimeEntry({ ...VALID_ENTRY, commentId: 555 });
+    expect(result).toContain("unexpected shape");
+    expect(result).not.toContain("✓");
   });
 
   it("falls back to raw JSON on an unexpected response shape, in English", async () => {

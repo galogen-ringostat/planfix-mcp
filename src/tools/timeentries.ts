@@ -62,7 +62,11 @@ export async function handleAddTimeEntry(params: z.infer<typeof addTimeEntrySche
 
   const resp = result as { keys?: unknown[]; commentId?: unknown };
   const key = Array.isArray(resp?.keys) ? resp.keys[0] : undefined;
-  const commentId = resp?.commentId;
+  // The response shape differs per endpoint variant (verified live, Layer 3
+  // 2026-07-24): the new-comment POST returns { keys, commentId }, but the
+  // append POST returns { keys } only — there the commentId is echoed from
+  // the input, which is the comment the entry landed on.
+  const commentId = params.commentId !== undefined ? params.commentId : resp?.commentId;
   if (key === undefined || commentId === undefined) {
     return `Time entry request accepted, but the response had an unexpected shape (no keys/commentId):\n${jsonFallback(result)}`;
   }

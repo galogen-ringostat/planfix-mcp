@@ -86,6 +86,12 @@ computed by Planfix); field 173 resolved to `user:403` "Dmytro Galogen Halahan".
    `keys` from the create response (or a complex filter), not paging.
 4. Dates are `DD-MM-YYYY` in write values and `stringValue`, but read back with an additional
    ISO `datetime` — same duality the task filters have (`dateValue`, spike of 2026-07-24).
+5. **The create response shape differs per endpoint variant** (Layer 3, 2026-07-24): the
+   new-comment `POST /task/{id}/datatags/` returns `{ result, keys, commentId }`, but the
+   append `POST /task/{id}/datatags/{commentId}` returns `{ result, keys }` only — no
+   `commentId` field (observed live, entry 127824). Consumers must echo the input commentId on
+   the append path; treating the missing field as an error falsely reports a successful write
+   as failed (retry risk → double-logged time).
 
 ## Proposed tool design (for review BEFORE implementation — not built in this spike)
 
