@@ -5,9 +5,9 @@ import { formatProjectList, formatSingleProject } from "../format.js";
 const PROJECT_FIELDS = "id,name,description,status";
 
 export const getProjectsSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество проектов на странице (по умолчанию 100)"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${PROJECT_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Projects per page (default 100, API max 100)"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${PROJECT_FIELDS})`),
 });
 
 export async function handleGetProjects(params: z.infer<typeof getProjectsSchema>): Promise<string> {
@@ -23,8 +23,8 @@ export async function handleGetProjects(params: z.infer<typeof getProjectsSchema
 }
 
 export const getProjectSchema = z.object({
-  projectId: z.number().describe("ID проекта"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${PROJECT_FIELDS})`),
+  projectId: z.number().describe("Project ID"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${PROJECT_FIELDS})`),
 });
 
 export async function handleGetProject(params: z.infer<typeof getProjectSchema>): Promise<string> {

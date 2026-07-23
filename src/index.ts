@@ -19,208 +19,328 @@ import { skillMyTasks, skillCreateTask } from "./skills.js";
 
 const VERSION = "1.2.0";
 
+const READ_ONLY = { readOnlyHint: true, idempotentHint: true } as const;
+const ADDITIVE_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false } as const;
+// update_* overwrite fields but the same payload converges to the same state.
+const IDEMPOTENT_UPDATE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true } as const;
+
 export function createPlanfixServer(): McpServer {
   const server = new McpServer({
     name: "planfix-mcp",
     version: VERSION,
   });
 
-  server.tool(
+  const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
+
+  server.registerTool(
     "get_tasks",
-    "Получить список задач из Planfix с пагинацией и фильтрами.",
-    getTasksSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetTasks(params) }] }),
+    {
+      description:
+        "List Planfix tasks with pagination and raw Planfix filters. " +
+        "Use it to page through tasks when no specific search criteria exist; for criteria-driven discovery prefer search_tasks. " +
+        'Input example: { pageSize: 50, offset: 0 }.',
+      inputSchema: getTasksSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetTasks(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_task",
-    "Получить одну задачу по ID.",
-    getTaskSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetTask(params) }] }),
+    {
+      description:
+        "Get one task by ID (name, description, status, priority, assignees, project, dates). " +
+        "Use get_task_full instead when you also need the task's comments. " +
+        "Input example: { taskId: 123 }.",
+      inputSchema: getTaskSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetTask(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "create_task",
-    "Создать новую задачу в Planfix.",
-    createTaskSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleCreateTask(params) }] }),
+    {
+      description:
+        "Create a new task in Planfix. " +
+        "Find assigneeId via list_users and projectId via get_projects first. " +
+        'Input example: { name: "Prepare report", projectId: 45, assigneeId: 403 }.',
+      inputSchema: createTaskSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleCreateTask(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "update_task",
-    "Обновить существующую задачу в Planfix (название, описание, статус, исполнитель).",
-    updateTaskSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleUpdateTask(params) }] }),
+    {
+      description:
+        "Update an existing task: name, description, status, and/or assignee. Only the provided fields change. " +
+        "Status IDs come from list_directory_entries on the relevant status set. " +
+        "Input example: { taskId: 123, status: 2 }.",
+      inputSchema: updateTaskSchema.shape,
+      annotations: IDEMPOTENT_UPDATE,
+    },
+    async (params) => text(await handleUpdateTask(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_contacts",
-    "Получить список контактов из Planfix с пагинацией и фильтрами.",
-    getContactsSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetContacts(params) }] }),
+    {
+      description:
+        "List Planfix contacts with pagination and an optional saved filter. " +
+        "Use get_contact when you already know the contact ID. " +
+        "Input example: { pageSize: 50 }.",
+      inputSchema: getContactsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetContacts(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_contact",
-    "Получить одного контакта по ID.",
-    getContactSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetContact(params) }] }),
+    {
+      description:
+        "Get one contact by ID (name, email, phones, company). " +
+        "Input example: { contactId: 7 }.",
+      inputSchema: getContactSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetContact(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_projects",
-    "Получить список проектов из Planfix.",
-    getProjectsSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetProjects(params) }] }),
+    {
+      description:
+        "List Planfix projects (id, name, status). " +
+        "Use it to find a projectId for create_task or search_tasks. " +
+        "Input example: {}.",
+      inputSchema: getProjectsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetProjects(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_project",
-    "Получить один проект по ID.",
-    getProjectSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetProject(params) }] }),
+    {
+      description:
+        "Get one project by ID (name, description, status). " +
+        "Input example: { projectId: 45 }.",
+      inputSchema: getProjectSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetProject(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_comments",
-    "Получить комментарии к задаче.",
-    getCommentsSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetComments(params) }] }),
+    {
+      description:
+        "List a task's comments with pagination (author, timestamp, text). " +
+        "Use get_task_full when you need the task card and its comments in one call. " +
+        "Input example: { taskId: 123, pageSize: 50 }.",
+      inputSchema: getCommentsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetComments(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "add_comment",
-    "Добавить комментарий к задаче.",
-    addCommentSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleAddComment(params) }] }),
+    {
+      description:
+        "Add a comment to a task. " +
+        "Do NOT use it for time logging — that is add_time_entry. " +
+        'Input example: { taskId: 123, body: "Status update: done." }.',
+      inputSchema: addCommentSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleAddComment(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "create_contact",
-    "Создать контакт (или компанию) в Planfix.",
-    createContactSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleCreateContact(params) }] }),
+    {
+      description:
+        "Create a contact (or a company, with isCompany: true) in Planfix. " +
+        'Input example: { name: "Acme Ltd", email: "info@acme.com", isCompany: true }.',
+      inputSchema: createContactSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleCreateContact(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "update_contact",
-    "Обновить контакт (имя, email, телефон).",
-    updateContactSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleUpdateContact(params) }] }),
+    {
+      description:
+        "Update a contact's name, email, and/or phone. Only the provided fields change. " +
+        "Input example: { contactId: 7, email: \"new@acme.com\" }.",
+      inputSchema: updateContactSchema.shape,
+      annotations: IDEMPOTENT_UPDATE,
+    },
+    async (params) => text(await handleUpdateContact(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "list_users",
-    "Получить список сотрудников Planfix. Используй для поиска ID исполнителя по имени перед create_task/update_task.",
-    listUsersSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleListUsers(params) }] }),
+    {
+      description:
+        "List Planfix employees (id, name, email, position). " +
+        "Use it to resolve a person's name to the numeric ID required by create_task, update_task, search_tasks, and add_time_entry. " +
+        "Input example: {}.",
+      inputSchema: listUsersSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleListUsers(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_user",
-    "Получить одного сотрудника по ID.",
-    getUserSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetUser(params) }] }),
+    {
+      description:
+        "Get one employee by ID (name, email, position). " +
+        "Input example: { userId: 403 }.",
+      inputSchema: getUserSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetUser(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "list_directories",
-    "Получить список справочников Planfix (в т.ч. наборы статусов задач хранятся как справочники).",
-    listDirectoriesSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleListDirectories(params) }] }),
+    {
+      description:
+        "List Planfix directories — custom task status sets are stored as directories. " +
+        "Follow up with list_directory_entries to see a directory's values. " +
+        "Input example: {}.",
+      inputSchema: listDirectoriesSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleListDirectories(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "list_directory_entries",
-    "Получить записи справочника по его ID (например, варианты статусов).",
-    listDirectoryEntriesSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleListDirectoryEntries(params) }] }),
+    {
+      description:
+        "List the entries of a directory by its ID — e.g. the status options usable as update_task's status. " +
+        "Find the directoryId via list_directories first. " +
+        "Input example: { directoryId: 3 }.",
+      inputSchema: listDirectoryEntriesSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleListDirectoryEntries(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "list_custom_fields",
-    "Получить список кастомных полей для типа объекта (task/contact/project/user/main).",
-    listCustomFieldsSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleListCustomFields(params) }] }),
+    {
+      description:
+        "List the custom fields configured for an object type (task, contact, project, user, or main). " +
+        "Use it to discover field IDs before reading or writing custom field values. " +
+        'Input example: { objectType: "task" }.',
+      inputSchema: listCustomFieldsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleListCustomFields(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "list_datatags",
-    "Получить список дата-тегов Planfix.",
-    listDatatagsSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleListDatatags(params) }] }),
+    {
+      description:
+        "List Planfix data tags (analytics definitions: id, name, group). " +
+        "For reading or writing time entries use get_task_time_entries / add_time_entry instead. " +
+        "Input example: {}.",
+      inputSchema: listDatatagsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleListDatatags(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "upload_file_from_url",
-    "Загрузить файл в Planfix по прямой ссылке (без multipart).",
-    uploadFileFromUrlSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleUploadFileFromUrl(params) }] }),
+    {
+      description:
+        "Upload a file to Planfix from a direct URL (no multipart upload from disk). " +
+        'Input example: { url: "https://example.com/report.pdf", name: "report.pdf" }.',
+      inputSchema: uploadFileFromUrlSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleUploadFileFromUrl(params)),
   );
 
-  server.tool(
+  server.registerTool(
     "get_file",
-    "Получить метаданные файла по ID.",
-    getFileSchema.shape,
-    async (params) => ({ content: [{ type: "text", text: await handleGetFile(params) }] }),
+    {
+      description:
+        "Get a file's metadata by ID (name, size). " +
+        "Input example: { fileId: 9 }.",
+      inputSchema: getFileSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetFile(params)),
   );
 
   server.registerTool(
     "get_task_full",
     {
       description:
-        "Получить задачу вместе с её комментариями за один вызов (эквивалент get_task + get_comments). " +
-        "Используй при синхронизации карточки задачи или когда нужен и сама задача, и её обсуждение. " +
-        "Не используй, если комментарии не нужны (get_task) или нужно листать старые комментарии (get_comments с offset). " +
-        "Пример входа: { taskId: 123, commentsLimit: 30 }.",
+        "Get a task together with its comments in a single call (equivalent to get_task + get_comments). " +
+        "Use it when you need both the task card and its discussion — e.g. syncing a task mirror. " +
+        "Use get_task when comments are not needed, or get_comments with offset to page through older comments. " +
+        "Input example: { taskId: 123, commentsLimit: 30 }.",
       inputSchema: getTaskFullSchema.shape,
-      annotations: { readOnlyHint: true, idempotentHint: true },
+      annotations: READ_ONLY,
     },
-    async (params) => ({ content: [{ type: "text", text: await handleGetTaskFull(params) }] }),
+    async (params) => text(await handleGetTaskFull(params)),
   );
 
   server.registerTool(
     "search_tasks",
     {
       description:
-        "Найти задачи по фильтрам (комбинируются по AND): подстрока названия (nameContains), исполнитель (assigneeId), " +
-        "статус (statusId), проект (projectId), изменённые или прокомментированные после даты (updatedSince, ISO YYYY-MM-DD). " +
-        "Нужен минимум один фильтр; для просмотра всех задач без фильтров используй get_tasks. " +
-        "Предпочитай search_tasks листанию get_tasks, когда ищешь конкретные задачи. " +
-        'Пример входа: { nameContains: "отчёт", projectId: 572465, updatedSince: "2026-07-01" }.',
+        "Search tasks by filters (AND-combined): name substring (nameContains), assignee (assigneeId), " +
+        "status (statusId), project (projectId), changed or commented after a date (updatedSince, ISO YYYY-MM-DD). " +
+        "At least one filter is required; to page through all tasks unfiltered use get_tasks. " +
+        "Prefer search_tasks over paging get_tasks when looking for specific tasks. " +
+        'Input example: { nameContains: "report", projectId: 572465, updatedSince: "2026-07-01" }.',
       inputSchema: searchTasksSchema.shape,
-      annotations: { readOnlyHint: true, idempotentHint: true },
+      annotations: READ_ONLY,
     },
-    async (params) => ({ content: [{ type: "text", text: await handleSearchTasks(params) }] }),
+    async (params) => text(await handleSearchTasks(params)),
   );
 
   server.registerTool(
     "add_time_entry",
     {
       description:
-        "Записать затраченное время в задачу (аналитика «Time spent»). " +
-        "Конвенция логирования: ОДИН комментарий на период логирования, внутри него несколько записей. " +
-        "Первый вызов делай без commentId — Planfix создаст новый комментарий-период; " +
-        "из результата возьми commentId и передавай его в последующие вызовы, чтобы записи ложились в тот же комментарий. " +
-        "Перед первым вызовом проверь через get_task_time_entries, нет ли уже комментария-периода. " +
-        'Пример входа: { taskId: 123, date: "2026-07-24", timeFrom: "10:00", timeTo: "10:30", type: "Task", comment: "правки по тексту", userId: 403 }.',
+        'Log time spent on a task (the "Time spent" analytic). ' +
+        "Logging convention: ONE comment per logging period holding several entries. " +
+        "Make the first call without commentId — Planfix creates a new logging-period comment; " +
+        "take commentId from the result and pass it on subsequent calls so entries land on the same comment. " +
+        "Before the first call, check get_task_time_entries for an existing period comment. " +
+        'Input example: { taskId: 123, date: "2026-07-24", timeFrom: "10:00", timeTo: "10:30", type: "Task", comment: "text edits", userId: 403 }.',
       inputSchema: addTimeEntrySchema.shape,
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      annotations: ADDITIVE_WRITE,
     },
-    async (params) => ({ content: [{ type: "text", text: await handleAddTimeEntry(params) }] }),
+    async (params) => text(await handleAddTimeEntry(params)),
   );
 
   server.registerTool(
     "get_task_time_entries",
     {
       description:
-        "Получить записи затраченного времени задачи (аналитика «Time spent»): key, дата, интервал, длительность, сотрудник, тип, комментарий, commentId. " +
-        "Используй перед add_time_entry, чтобы найти существующий комментарий-период (commentId) и не плодить новые комментарии. " +
-        "Пример входа: { taskId: 123 }.",
+        'Get a task\'s logged time entries (the "Time spent" analytic): key, date, interval, duration, employee, type, comment, commentId. ' +
+        "Use it before add_time_entry to find an existing logging-period comment (commentId) instead of spawning new comments. " +
+        "Input example: { taskId: 123 }.",
       inputSchema: getTaskTimeEntriesSchema.shape,
-      annotations: { readOnlyHint: true, idempotentHint: true },
+      annotations: READ_ONLY,
     },
-    async (params) => ({ content: [{ type: "text", text: await handleGetTaskTimeEntries(params) }] }),
+    async (params) => text(await handleGetTaskTimeEntries(params)),
   );
 
   skillMyTasks(server);
@@ -298,11 +418,11 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} запущен. 24 инструмента, 2 навыка. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 24 tools, 2 skills. Stdio.`);
   }
 }
 
 main().catch((error) => {
-  console.error("[planfix-mcp] Ошибка:", error);
+  console.error("[planfix-mcp] Error:", error);
   process.exit(1);
 });

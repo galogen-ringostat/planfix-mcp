@@ -6,9 +6,9 @@ import { formatDirectoryList, formatDirectoryEntryList } from "../format.js";
 const DIRECTORY_FIELDS = "id,name";
 
 export const listDirectoriesSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество справочников на странице (по умолчанию 100)"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${DIRECTORY_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Directories per page (default 100, API max 100)"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${DIRECTORY_FIELDS})`),
 });
 
 export async function handleListDirectories(params: z.infer<typeof listDirectoriesSchema>): Promise<string> {
@@ -21,9 +21,9 @@ export async function handleListDirectories(params: z.infer<typeof listDirectori
 }
 
 export const listDirectoryEntriesSchema = z.object({
-  directoryId: z.number().describe("ID справочника (например, набор статусов)"),
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество записей на странице (по умолчанию 100)"),
+  directoryId: z.number().describe("Directory ID (e.g. a task status set)"),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Entries per page (default 100, API max 100)"),
 });
 
 export async function handleListDirectoryEntries(params: z.infer<typeof listDirectoryEntriesSchema>): Promise<string> {

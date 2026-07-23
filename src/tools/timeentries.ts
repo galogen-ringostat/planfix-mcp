@@ -19,21 +19,21 @@ const TIME_ENTRY_TYPES = ["Task", "Meeting", "Feedback", "Edits"] as const;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const addTimeEntrySchema = z.object({
-  taskId: z.number().int().positive().describe("ID задачи"),
+  taskId: z.number().int().positive().describe("Task ID"),
   date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-24")
-    .describe("Дата, за которую логируется время (ISO, YYYY-MM-DD)"),
+    .describe("Date the time is logged for (ISO, YYYY-MM-DD)"),
   timeFrom: z.string()
     .regex(HHMM, "timeFrom must be a 24-hour time in HH:MM format, e.g. 09:30")
-    .describe("Начало интервала (HH:MM)"),
+    .describe("Interval start (HH:MM)"),
   timeTo: z.string()
     .regex(HHMM, "timeTo must be a 24-hour time in HH:MM format, e.g. 18:00")
-    .describe("Конец интервала (HH:MM)"),
-  type: z.enum(TIME_ENTRY_TYPES).describe("Тип работы: Task, Meeting, Feedback или Edits"),
-  comment: z.string().min(1).describe("Описание работы"),
-  userId: z.number().int().positive().describe("ID сотрудника, чьё время логируется. Найти ID: инструмент list_users"),
+    .describe("Interval end (HH:MM)"),
+  type: z.enum(TIME_ENTRY_TYPES).describe("Work type: Task, Meeting, Feedback, or Edits"),
+  comment: z.string().min(1).describe("What the time was spent on"),
+  userId: z.number().int().positive().describe("ID of the employee whose time is logged. Find it with the list_users tool"),
   commentId: z.number().int().positive().optional()
-    .describe("ID существующего комментария-периода: запись добавится в него вместо создания нового комментария"),
+    .describe("ID of an existing logging-period comment: the entry is appended to it instead of creating a new comment"),
 });
 
 export async function handleAddTimeEntry(params: z.infer<typeof addTimeEntrySchema>): Promise<string> {
@@ -80,12 +80,12 @@ const ENTRY_FIELDS = `key,task,commentId,${FIELD_USER},${FIELD_DATE},${FIELD_TIM
 const DEFAULT_ENTRIES_PAGE_SIZE = 30;
 
 export const getTaskTimeEntriesSchema = z.object({
-  taskId: z.number().int().positive().describe("ID задачи"),
-  offset: z.number().int().min(0).optional().describe("Смещение для пагинации (по умолчанию 0)"),
+  taskId: z.number().int().positive().describe("Task ID"),
+  offset: z.number().int().min(0).optional().describe("Pagination offset (default 0)"),
   // Max 99, not 100: the API caps pageSize at 100 and the handler over-fetches
   // one row to compute an exact has_more.
   pageSize: z.number().int().min(1).max(99).optional()
-    .describe(`Записей на странице (по умолчанию ${DEFAULT_ENTRIES_PAGE_SIZE}, максимум 99)`),
+    .describe(`Entries per page (default ${DEFAULT_ENTRIES_PAGE_SIZE}, max 99)`),
 });
 
 export async function handleGetTaskTimeEntries(params: z.infer<typeof getTaskTimeEntriesSchema>): Promise<string> {

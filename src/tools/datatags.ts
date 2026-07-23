@@ -5,9 +5,9 @@ import { formatDatatagList } from "../format.js";
 const DATATAG_FIELDS = "id,name";
 
 export const listDatatagsSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество дата-тегов на странице (по умолчанию 100)"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${DATATAG_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Data tags per page (default 100, API max 100)"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${DATATAG_FIELDS})`),
 });
 
 export async function handleListDatatags(params: z.infer<typeof listDatatagsSchema>): Promise<string> {

@@ -6,9 +6,9 @@ import { formatUserList, formatSingleUser } from "../format.js";
 const USER_FIELDS = "id,name,midname,lastname,email,position";
 
 export const listUsersSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество сотрудников на странице (по умолчанию 100)"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${USER_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Employees per page (default 100, API max 100)"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${USER_FIELDS})`),
 });
 
 export async function handleListUsers(params: z.infer<typeof listUsersSchema>): Promise<string> {
@@ -23,8 +23,8 @@ export async function handleListUsers(params: z.infer<typeof listUsersSchema>): 
 }
 
 export const getUserSchema = z.object({
-  userId: z.number().describe("ID сотрудника"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${USER_FIELDS})`),
+  userId: z.number().describe("Employee ID"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${USER_FIELDS})`),
 });
 
 export async function handleGetUser(params: z.infer<typeof getUserSchema>): Promise<string> {

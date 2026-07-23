@@ -6,7 +6,7 @@ import { formatCustomFieldList } from "../format.js";
 export const listCustomFieldsSchema = z.object({
   objectType: z
     .enum(["task", "contact", "project", "user", "main"])
-    .describe("Тип объекта, для которого нужны кастомные поля"),
+    .describe("Object type whose custom fields are listed"),
 });
 
 export async function handleListCustomFields(params: z.infer<typeof listCustomFieldsSchema>): Promise<string> {

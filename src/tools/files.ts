@@ -6,8 +6,8 @@ import { refuseUnscopedMutation } from "../safemode.js";
 // FileUploadRequest = { name, url } (оба опциональны). Загрузка файла по ссылке —
 // без multipart. Прямую загрузку с диска (POST /file/) тут не реализуем.
 export const uploadFileFromUrlSchema = z.object({
-  url: z.string().describe("Прямая ссылка на файл для загрузки"),
-  name: z.string().optional().describe("Имя файла (если не задано — берётся из ссылки)"),
+  url: z.string().describe("Direct URL of the file to upload"),
+  name: z.string().optional().describe("File name (derived from the URL when omitted)"),
 });
 
 export async function handleUploadFileFromUrl(params: z.infer<typeof uploadFileFromUrlSchema>): Promise<string> {
@@ -21,7 +21,7 @@ export async function handleUploadFileFromUrl(params: z.infer<typeof uploadFileF
 }
 
 export const getFileSchema = z.object({
-  fileId: z.number().describe("ID файла"),
+  fileId: z.number().describe("File ID"),
 });
 
 export async function handleGetFile(params: z.infer<typeof getFileSchema>): Promise<string> {

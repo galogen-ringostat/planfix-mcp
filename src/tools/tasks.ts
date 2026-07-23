@@ -7,19 +7,19 @@ import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js
 // поэтому всегда запрашиваем осмысленный набор полей.
 const TASK_FIELDS = "id,name,description,status,priority,assignees,project,startDateTime,endDateTime";
 
-// Ad-hoc фильтр Planfix: { type, operator, value } (комбинируются по AND).
+// Ad-hoc Planfix filter: { type, operator, value } (combined with AND).
 const filterSchema = z.object({
-  type: z.number().describe("Тип фильтра (числовой код Planfix, напр. 8 — имя, 51 — шаблон)"),
-  operator: z.string().describe("Оператор сравнения, напр. 'equal', 'gt', 'lt'"),
-  value: z.unknown().describe("Значение фильтра"),
+  type: z.number().describe("Filter type (Planfix numeric code, e.g. 8 — task name, 51 — template)"),
+  operator: z.string().describe("Comparison operator, e.g. 'equal', 'gt', 'lt'"),
+  value: z.unknown().describe("Filter value"),
 });
 
 export const getTasksSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество задач на странице (по умолчанию 100)"),
-  filterId: z.union([z.string(), z.number()]).optional().describe("ID сохранённого фильтра задач (см. /task/filters)"),
-  filters: z.array(filterSchema).optional().describe("Массив ad-hoc фильтров для произвольной фильтрации"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${TASK_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Tasks per page (default 100, API max 100)"),
+  filterId: z.union([z.string(), z.number()]).optional().describe("ID of a saved task filter (see /task/filters)"),
+  filters: z.array(filterSchema).optional().describe("Array of ad-hoc filters for arbitrary filtering"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS})`),
 });
 
 export async function handleGetTasks(params: z.infer<typeof getTasksSchema>): Promise<string> {
@@ -36,8 +36,8 @@ export async function handleGetTasks(params: z.infer<typeof getTasksSchema>): Pr
 }
 
 export const getTaskSchema = z.object({
-  taskId: z.number().describe("ID задачи"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${TASK_FIELDS})`),
+  taskId: z.number().describe("Task ID"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS})`),
 });
 
 export async function handleGetTask(params: z.infer<typeof getTaskSchema>): Promise<string> {
@@ -46,13 +46,13 @@ export async function handleGetTask(params: z.infer<typeof getTaskSchema>): Prom
 }
 
 export const createTaskSchema = z.object({
-  name: z.string().describe("Название задачи"),
-  description: z.string().optional().describe("Описание задачи"),
-  projectId: z.number().optional().describe("ID проекта"),
-  assigneeId: z.number().optional().describe("ID исполнителя (сотрудника). Найти ID: инструмент list_users"),
-  // ВНИМАНИЕ: priority — строка, но точные допустимые значения не верифицированы
-  // против live API. Передаётся как есть.
-  priority: z.string().optional().describe("Приоритет задачи (строка). Допустимые значения не верифицированы против live API"),
+  name: z.string().describe("Task name"),
+  description: z.string().optional().describe("Task description"),
+  projectId: z.number().optional().describe("Project ID"),
+  assigneeId: z.number().optional().describe("Assignee (employee) ID. Find it with the list_users tool"),
+  // NOTE: priority is a string, but the exact allowed values are not verified
+  // against the live API. Passed through as-is.
+  priority: z.string().optional().describe("Task priority (string). Allowed values not verified against the live API"),
 });
 
 export async function handleCreateTask(params: z.infer<typeof createTaskSchema>): Promise<string> {
@@ -69,11 +69,11 @@ export async function handleCreateTask(params: z.infer<typeof createTaskSchema>)
 }
 
 export const updateTaskSchema = z.object({
-  taskId: z.number().describe("ID задачи"),
-  name: z.string().optional().describe("Новое название"),
-  description: z.string().optional().describe("Новое описание"),
-  status: z.number().optional().describe("ID нового статуса"),
-  assigneeId: z.number().optional().describe("ID нового исполнителя (см. list_users)"),
+  taskId: z.number().describe("Task ID"),
+  name: z.string().optional().describe("New name"),
+  description: z.string().optional().describe("New description"),
+  status: z.number().optional().describe("New status ID"),
+  assigneeId: z.number().optional().describe("New assignee ID (see list_users)"),
 });
 
 export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>): Promise<string> {
@@ -96,9 +96,9 @@ const COMMENT_FIELDS = "id,dateTime,owner,description";
 const DEFAULT_COMMENTS_LIMIT = 30;
 
 export const getTaskFullSchema = z.object({
-  taskId: z.number().int().positive().describe("ID задачи"),
+  taskId: z.number().int().positive().describe("Task ID"),
   commentsLimit: z.number().int().min(1).max(100).optional()
-    .describe(`Максимум комментариев в ответе (по умолчанию ${DEFAULT_COMMENTS_LIMIT}, максимум 100)`),
+    .describe(`Maximum comments in the response (default ${DEFAULT_COMMENTS_LIMIT}, max 100)`),
 });
 
 export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema>): Promise<string> {
@@ -139,17 +139,17 @@ const SEARCH_FIELDS = "id,name,status,assignees,project";
 const DEFAULT_SEARCH_PAGE_SIZE = 50;
 
 export const searchTasksSchema = z.object({
-  nameContains: z.string().min(1).optional().describe("Подстрока в названии задачи"),
-  assigneeId: z.number().int().positive().optional().describe("ID исполнителя (сотрудника). Найти ID: инструмент list_users"),
-  statusId: z.number().int().positive().optional().describe("ID статуса задачи"),
-  projectId: z.number().int().positive().optional().describe("ID проекта"),
+  nameContains: z.string().min(1).optional().describe("Substring of the task name"),
+  assigneeId: z.number().int().positive().optional().describe("Assignee (employee) ID. Find it with the list_users tool"),
+  statusId: z.number().int().positive().optional().describe("Task status ID"),
+  projectId: z.number().int().positive().optional().describe("Project ID"),
   updatedSince: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "updatedSince must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
     .optional()
-    .describe("Только задачи с изменениями или комментариями после этой даты (ISO, YYYY-MM-DD)"),
-  offset: z.number().int().min(0).optional().describe("Смещение для пагинации (по умолчанию 0)"),
+    .describe("Only tasks changed or commented after this date (ISO, YYYY-MM-DD)"),
+  offset: z.number().int().min(0).optional().describe("Pagination offset (default 0)"),
   pageSize: z.number().int().min(1).max(100).optional()
-    .describe(`Результатов на странице (по умолчанию ${DEFAULT_SEARCH_PAGE_SIZE}, максимум 100)`),
+    .describe(`Results per page (default ${DEFAULT_SEARCH_PAGE_SIZE}, max 100)`),
 });
 
 export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema>): Promise<string> {

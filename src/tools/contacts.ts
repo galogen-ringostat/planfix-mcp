@@ -6,10 +6,10 @@ import { refuseUnscopedMutation } from "../safemode.js";
 const CONTACT_FIELDS = "id,name,midname,lastname,email,phones,company";
 
 export const getContactsSchema = z.object({
-  offset: z.number().optional().describe("Смещение для пагинации (по умолчанию 0)"),
-  pageSize: z.number().optional().describe("Количество контактов на странице (по умолчанию 100)"),
-  filterId: z.union([z.string(), z.number()]).optional().describe("ID сохранённого фильтра контактов"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${CONTACT_FIELDS})`),
+  offset: z.number().optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().optional().describe("Contacts per page (default 100, API max 100)"),
+  filterId: z.union([z.string(), z.number()]).optional().describe("ID of a saved contact filter"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${CONTACT_FIELDS})`),
 });
 
 export async function handleGetContacts(params: z.infer<typeof getContactsSchema>): Promise<string> {
@@ -25,8 +25,8 @@ export async function handleGetContacts(params: z.infer<typeof getContactsSchema
 }
 
 export const getContactSchema = z.object({
-  contactId: z.number().describe("ID контакта"),
-  fields: z.string().optional().describe(`Список полей через запятую (по умолчанию: ${CONTACT_FIELDS})`),
+  contactId: z.number().describe("Contact ID"),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${CONTACT_FIELDS})`),
 });
 
 export async function handleGetContact(params: z.infer<typeof getContactSchema>): Promise<string> {
@@ -35,11 +35,11 @@ export async function handleGetContact(params: z.infer<typeof getContactSchema>)
 }
 
 export const createContactSchema = z.object({
-  name: z.string().describe("Имя контакта (или название компании)"),
+  name: z.string().describe("Contact name (or company name)"),
   email: z.string().optional().describe("Email"),
-  phone: z.string().optional().describe("Телефон"),
-  companyId: z.number().optional().describe("ID компании, к которой привязать контакт"),
-  isCompany: z.boolean().optional().describe("true — создать компанию вместо персоны"),
+  phone: z.string().optional().describe("Phone number"),
+  companyId: z.number().optional().describe("ID of the company to link the contact to"),
+  isCompany: z.boolean().optional().describe("true — create a company instead of a person"),
 });
 
 export async function handleCreateContact(params: z.infer<typeof createContactSchema>): Promise<string> {
@@ -55,10 +55,10 @@ export async function handleCreateContact(params: z.infer<typeof createContactSc
 }
 
 export const updateContactSchema = z.object({
-  contactId: z.number().describe("ID контакта"),
-  name: z.string().optional().describe("Новое имя"),
-  email: z.string().optional().describe("Новый email"),
-  phone: z.string().optional().describe("Новый телефон"),
+  contactId: z.number().describe("Contact ID"),
+  name: z.string().optional().describe("New name"),
+  email: z.string().optional().describe("New email"),
+  phone: z.string().optional().describe("New phone number"),
 });
 
 export async function handleUpdateContact(params: z.infer<typeof updateContactSchema>): Promise<string> {
