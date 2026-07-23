@@ -11,6 +11,7 @@ MCP server for the Planfix REST API v2 (`https://<account>.planfix.com/rest/`), 
 - Work entirely in **English**: reasoning, chat responses, code, comments, commit messages, docs.
 - Your primary reader is **another LLM instance** (a knowledge-base/review session that evaluates your work), not a human. Write responses accordingly: exhaustive and self-contained over conversational; state file paths, function names, exact env var names, and exact behavior verbatim; enumerate every decision made and every deviation from spec explicitly; no rhetorical framing, no summarized hand-waving ("improved error handling") — name the concrete change. Assume the reader has NOT seen your session transcript.
 - End-of-task reports must include: what changed (per file), why, test evidence (command + result), open questions/deviations. Machine-parseable structure (headings/lists) preferred.
+- **Error messages, refusals, validation messages, and corrective hints are ALWAYS English** — in new code immediately, and migrate existing Russian error strings whenever you touch the file that contains them. Rationale: these strings are consumed by an LLM agent at failure time; they must match the working language. Tool descriptions and data labels currently follow the upstream Russian convention — leave them until the wholesale migration pass (ROADMAP P3).
 
 ## Commands
 

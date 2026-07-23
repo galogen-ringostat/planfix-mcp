@@ -6,9 +6,9 @@ Development loop: friction observed in a live session → item recorded here →
 
 ## P1 — composite & search tools (observed friction)
 
-1. **`get_task_full`** — return task fields + comments in a single call. **Implemented 2026-07-24** (`src/tools/tasks.ts`, awaiting Layer 3 review).
+1. **`get_task_full`** — return task fields + comments in a single call. **Implemented 2026-07-24** (`src/tools/tasks.ts`), **Layer 3 verified 2026-07-24** (live read-only run: all filters discriminate correctly against production data).
    Friction: syncing one card of the vault task mirror currently costs `get_task` + `get_comments` (2 round-trips, 2× token overhead). Follow the consolidation guidance: one tool per real workflow step.
-2. **`search_tasks`** — filtered task search (name substring, assignee, status, project, updated-since). **Implemented 2026-07-24** (`src/tools/tasks.ts`, awaiting Layer 3 review).
+2. **`search_tasks`** — filtered task search (name substring, assignee, status, project, updated-since). **Implemented 2026-07-24** (`src/tools/tasks.ts`), **Layer 3 verified 2026-07-24** (live read-only run: all filters discriminate correctly against production data).
    Friction: the only discovery path today is paging `get_tasks`. Planfix REST supports complex task filters (see [REST API: Complex task filters](https://planfix.com/help/REST_API:_Complex_task_filters)). Search-shaped beats list-shaped.
 
 ## P2 — time entries (investigation first)
