@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost } from "../client.js";
 import { formatCommentList, formatCreated } from "../format.js";
+import { postListPage } from "../paging.js";
 import { assertTaskInTestProject } from "../safemode.js";
 
 const COMMENT_FIELDS = "id,dateTime,owner,description,isPinned,isHidden";
@@ -15,13 +16,11 @@ export const getCommentsSchema = z.object({
 export async function handleGetComments(params: z.infer<typeof getCommentsSchema>): Promise<string> {
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? 100;
-  // Planfix использует МНОЖЕСТВЕННОЕ число пути: /task/{id}/comments/list
-  const result = await planfixPost(`task/${params.taskId}/comments/list`, {
-    offset,
-    pageSize,
+  // Planfix uses the PLURAL path: /task/{id}/comments/list
+  const { resp, hasMore } = await postListPage(`task/${params.taskId}/comments/list`, {
     fields: params.fields ?? COMMENT_FIELDS,
-  });
-  return formatCommentList(result, pageSize, offset);
+  }, ["comments"], offset, pageSize);
+  return formatCommentList(resp, pageSize, offset, hasMore);
 }
 
 export const addCommentSchema = z.object({

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { planfixPost, planfixGet } from "../client.js";
+import { planfixGet } from "../client.js";
 import { formatUserList, formatSingleUser } from "../format.js";
+import { postListPage } from "../paging.js";
 
 // Ресурс сотрудников — /user (несмотря на тег "Employee" в спецификации).
 const USER_FIELDS = "id,name,midname,lastname,email,position";
@@ -14,12 +15,10 @@ export const listUsersSchema = z.object({
 export async function handleListUsers(params: z.infer<typeof listUsersSchema>): Promise<string> {
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? 100;
-  const result = await planfixPost("user/list", {
-    offset,
-    pageSize,
+  const { resp, hasMore } = await postListPage("user/list", {
     fields: params.fields ?? USER_FIELDS,
-  });
-  return formatUserList(result, pageSize, offset);
+  }, ["users"], offset, pageSize);
+  return formatUserList(resp, pageSize, offset, hasMore);
 }
 
 export const getUserSchema = z.object({

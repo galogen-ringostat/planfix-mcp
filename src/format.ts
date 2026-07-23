@@ -44,7 +44,7 @@ export function jsonFallback(resp: unknown): string {
 }
 
 /** Найти массив сущностей в ответе: сначала по предпочтительным ключам, затем первый попавшийся. */
-function findArray(resp: unknown, keys: string[]): unknown[] | undefined {
+export function findArray(resp: unknown, keys: string[]): unknown[] | undefined {
   const o = obj(resp);
   if (!o) return undefined;
   for (const k of keys) if (Array.isArray(o[k])) return o[k] as unknown[];
@@ -56,27 +56,31 @@ function line(parts: Array<string | undefined>): string {
   return parts.filter(Boolean).join(" | ");
 }
 
-function pageHint(count: number, pageSize?: number, offset?: number): string {
-  if (pageSize && count === pageSize) {
-    const next = (offset ?? 0) + pageSize;
-    return `\n…возможно есть ещё — запросите offset=${next}.`;
-  }
-  return "";
-}
-
-function renderList(
+/**
+ * Paged list rendering with exact pagination metadata. `resp` may hold up to
+ * `pageSize + 1` items (over-fetch, see src/paging.ts) — the extra row is
+ * sliced off and never rendered. `hasMore` is computed by the caller; the
+ * footer names the tool to call for the next page.
+ */
+function renderPagedList(
   label: string,
+  tool: string,
   resp: unknown,
   keys: string[],
   render: (item: Json, index: number) => string,
-  pageSize?: number,
-  offset?: number,
+  pageSize: number,
+  offset: number,
+  hasMore: boolean,
 ): string {
   const items = findArray(resp, keys);
   if (!items) return jsonFallback(resp);
-  if (items.length === 0) return `${label}: ничего не найдено.`;
-  const body = items.map((it, i) => `${i + 1}. ${render(obj(it) ?? {}, i)}`).join("\n");
-  return `${label} (${items.length}):\n${body}${pageHint(items.length, pageSize, offset)}`;
+  const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
+  if (shown.length === 0) return `${label}: ничего не найдено. has_more: false`;
+  const body = shown.map((it, i) => `${offset + i + 1}. ${render(obj(it) ?? {}, i)}`).join("\n");
+  const footer = hasMore
+    ? `has_more: true — next page: ${tool} with offset: ${offset + pageSize}.`
+    : "has_more: false";
+  return `${label} (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Tasks ───────────────────────────────────────────────────────────────────
@@ -93,8 +97,8 @@ export function formatTask(t: Json): string {
   ]);
 }
 
-export function formatTaskList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList("Задачи", resp, ["tasks"], (t) => formatTask(t), pageSize, offset);
+export function formatTaskList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Задачи", "get_tasks", resp, ["tasks"], (t) => formatTask(t), pageSize, offset, hasMore);
 }
 
 export function formatSingleTask(resp: unknown): string {
@@ -127,8 +131,8 @@ export function formatContact(c: Json): string {
   ]);
 }
 
-export function formatContactList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList("Контакты", resp, ["contacts"], (c) => formatContact(c), pageSize, offset);
+export function formatContactList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Контакты", "get_contacts", resp, ["contacts"], (c) => formatContact(c), pageSize, offset, hasMore);
 }
 
 export function formatSingleContact(resp: unknown): string {
@@ -142,8 +146,8 @@ export function formatProject(p: Json): string {
   return line([`#${val(p.id) ?? "?"}`, val(p.name), ref(p.status) && `статус: ${ref(p.status)}`]);
 }
 
-export function formatProjectList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList("Проекты", resp, ["projects"], (p) => formatProject(p), pageSize, offset);
+export function formatProjectList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Проекты", "get_projects", resp, ["projects"], (p) => formatProject(p), pageSize, offset, hasMore);
 }
 
 export function formatSingleProject(resp: unknown): string {
@@ -164,8 +168,8 @@ export function formatUser(u: Json): string {
   ]);
 }
 
-export function formatUserList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList("Сотрудники", resp, ["users"], (u) => formatUser(u), pageSize, offset);
+export function formatUserList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Сотрудники", "list_users", resp, ["users"], (u) => formatUser(u), pageSize, offset, hasMore);
 }
 
 export function formatSingleUser(resp: unknown): string {
@@ -184,27 +188,27 @@ function commentRow(c: Json): string {
   ]);
 }
 
-export function formatCommentList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList("Комментарии", resp, ["comments"], commentRow, pageSize, offset);
+export function formatCommentList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Комментарии", "get_comments", resp, ["comments"], commentRow, pageSize, offset, hasMore);
 }
 
 // ── Composite: task + comments (get_task_full) ────────────────────────────────
 
 /**
- * Renders a task card followed by its comments. `commentsResp` is expected to
- * hold up to `limit + 1` comments (the caller over-fetches one row), so
- * `has_more` here is exact, not a page-boundary heuristic.
+ * Renders a task card followed by its comments. `commentsResp` may hold up to
+ * `limit + 1` comments (over-fetch, see src/paging.ts) — the extra row is
+ * sliced off; `hasMore` is computed by the caller and exact.
  */
 export function formatTaskFull(
   taskResp: unknown,
   commentsResp: unknown,
-  opts: { taskId: number; limit: number },
+  opts: { taskId: number; limit: number; hasMore: boolean },
 ): string {
   const head = formatSingleTask(taskResp);
   const items = findArray(commentsResp, ["comments"]);
   if (!items) return `${head}\n\n${jsonFallback(commentsResp)}`;
-  const hasMore = items.length > opts.limit;
-  const shown = hasMore ? items.slice(0, opts.limit) : items;
+  const hasMore = opts.hasMore;
+  const shown = items.length > opts.limit ? items.slice(0, opts.limit) : items;
   if (shown.length === 0) return `${head}\n\nКомментарии: нет.\nhas_more: false`;
   const body = shown.map((it, i) => `${i + 1}. ${commentRow(obj(it) ?? {})}`).join("\n");
   const footer = hasMore
@@ -226,15 +230,14 @@ function taskSearchRow(t: Json): string {
 }
 
 /**
- * Compact search result rows with exact pagination metadata. `resp` is expected
- * to hold up to `pageSize + 1` tasks (the caller over-fetches one row), so
- * `has_more` is exact; the extra row is never rendered.
+ * Compact search result rows with exact pagination metadata. `resp` may hold
+ * up to `pageSize + 1` tasks (over-fetch, see src/paging.ts) — the extra row
+ * is sliced off; `hasMore` is computed by the caller and exact.
  */
-export function formatTaskSearchList(resp: unknown, pageSize: number, offset: number): string {
+export function formatTaskSearchList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
   const items = findArray(resp, ["tasks"]);
   if (!items) return jsonFallback(resp);
-  const hasMore = items.length > pageSize;
-  const shown = hasMore ? items.slice(0, pageSize) : items;
+  const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
   if (shown.length === 0) {
     return "No tasks matched the given filters. has_more: false. Try relaxing the filters (e.g. drop updatedSince or shorten nameContains).";
   }
@@ -304,28 +307,24 @@ export function formatTimeEntryList(
 
 // ── Directories / custom fields / datatags ───────────────────────────────────────
 
-export function formatDirectoryList(resp: unknown): string {
-  return renderList("Справочники", resp, ["directories"], (d) =>
-    line([`#${val(d.id) ?? "?"}`, val(d.name)]),
-  );
+export function formatDirectoryList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Справочники", "list_directories", resp, ["directories"], (d) =>
+    line([`#${val(d.id) ?? "?"}`, val(d.name)]), pageSize, offset, hasMore);
 }
 
-export function formatDirectoryEntryList(resp: unknown): string {
-  return renderList("Записи справочника", resp, ["directoryEntries", "entries"], (e) =>
-    line([`#${val(e.key) ?? val(e.id) ?? "?"}`, val(e.name)]),
-  );
+export function formatDirectoryEntryList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Записи справочника", "list_directory_entries", resp, ["directoryEntries", "entries"], (e) =>
+    line([`#${val(e.key) ?? val(e.id) ?? "?"}`, val(e.name)]), pageSize, offset, hasMore);
 }
 
-export function formatCustomFieldList(resp: unknown): string {
-  return renderList("Кастомные поля", resp, ["customFields", "fields"], (f) =>
-    line([`#${val(f.id) ?? "?"}`, val(f.name), ref(f.type) && `тип: ${ref(f.type)}`]),
-  );
+export function formatCustomFieldList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Кастомные поля", "list_custom_fields", resp, ["customFields", "customfields", "fields"], (f) =>
+    line([`#${val(f.id) ?? "?"}`, val(f.name), ref(f.type) && `тип: ${ref(f.type)}`]), pageSize, offset, hasMore);
 }
 
-export function formatDatatagList(resp: unknown): string {
-  return renderList("Дата-теги", resp, ["dataTags", "datatags"], (d) =>
-    line([`#${val(d.id) ?? "?"}`, val(d.name)]),
-  );
+export function formatDatatagList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  return renderPagedList("Дата-теги", "list_datatags", resp, ["dataTags", "datatags"], (d) =>
+    line([`#${val(d.id) ?? "?"}`, val(d.name)]), pageSize, offset, hasMore);
 }
 
 export function formatFile(resp: unknown): string {

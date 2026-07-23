@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost, planfixGet } from "../client.js";
 import { formatContactList, formatSingleContact, formatCreated, formatUpdated } from "../format.js";
+import { postListPage } from "../paging.js";
 import { refuseUnscopedMutation } from "../safemode.js";
 
 const CONTACT_FIELDS = "id,name,midname,lastname,email,phones,company";
@@ -15,13 +16,11 @@ export const getContactsSchema = z.object({
 export async function handleGetContacts(params: z.infer<typeof getContactsSchema>): Promise<string> {
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? 100;
-  const result = await planfixPost("contact/list", {
-    offset,
-    pageSize,
+  const { resp, hasMore } = await postListPage("contact/list", {
     fields: params.fields ?? CONTACT_FIELDS,
     ...(params.filterId !== undefined ? { filterId: String(params.filterId) } : {}),
-  });
-  return formatContactList(result, pageSize, offset);
+  }, ["contacts"], offset, pageSize);
+  return formatContactList(resp, pageSize, offset, hasMore);
 }
 
 export const getContactSchema = z.object({

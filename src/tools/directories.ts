@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { planfixPost } from "../client.js";
 import { formatDirectoryList, formatDirectoryEntryList } from "../format.js";
+import { postListPage } from "../paging.js";
 
 // Справочники (directories) Planfix хранят, в т.ч., кастомные наборы статусов задач.
 const DIRECTORY_FIELDS = "id,name";
@@ -12,12 +12,12 @@ export const listDirectoriesSchema = z.object({
 });
 
 export async function handleListDirectories(params: z.infer<typeof listDirectoriesSchema>): Promise<string> {
-  const result = await planfixPost("directory/list", {
-    offset: params.offset ?? 0,
-    pageSize: params.pageSize ?? 100,
+  const offset = params.offset ?? 0;
+  const pageSize = params.pageSize ?? 100;
+  const { resp, hasMore } = await postListPage("directory/list", {
     fields: params.fields ?? DIRECTORY_FIELDS,
-  });
-  return formatDirectoryList(result);
+  }, ["directories"], offset, pageSize);
+  return formatDirectoryList(resp, pageSize, offset, hasMore);
 }
 
 export const listDirectoryEntriesSchema = z.object({
@@ -27,9 +27,10 @@ export const listDirectoryEntriesSchema = z.object({
 });
 
 export async function handleListDirectoryEntries(params: z.infer<typeof listDirectoryEntriesSchema>): Promise<string> {
-  const result = await planfixPost(`directory/${params.directoryId}/entry/list`, {
-    offset: params.offset ?? 0,
-    pageSize: params.pageSize ?? 100,
-  });
-  return formatDirectoryEntryList(result);
+  const offset = params.offset ?? 0;
+  const pageSize = params.pageSize ?? 100;
+  const { resp, hasMore } = await postListPage(
+    `directory/${params.directoryId}/entry/list`, {}, ["directoryEntries", "entries"], offset, pageSize,
+  );
+  return formatDirectoryEntryList(resp, pageSize, offset, hasMore);
 }

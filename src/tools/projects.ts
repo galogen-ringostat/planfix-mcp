@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { planfixPost, planfixGet } from "../client.js";
+import { planfixGet } from "../client.js";
 import { formatProjectList, formatSingleProject } from "../format.js";
+import { postListPage } from "../paging.js";
 
 const PROJECT_FIELDS = "id,name,description,status";
 
@@ -13,13 +14,11 @@ export const getProjectsSchema = z.object({
 export async function handleGetProjects(params: z.infer<typeof getProjectsSchema>): Promise<string> {
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? 100;
-  // У project/list НЕТ параметра filterId (он только у contacts) — не отправляем.
-  const result = await planfixPost("project/list", {
-    offset,
-    pageSize,
+  // project/list has NO filterId parameter (contacts only) — never send it.
+  const { resp, hasMore } = await postListPage("project/list", {
     fields: params.fields ?? PROJECT_FIELDS,
-  });
-  return formatProjectList(result, pageSize, offset);
+  }, ["projects"], offset, pageSize);
+  return formatProjectList(resp, pageSize, offset, hasMore);
 }
 
 export const getProjectSchema = z.object({

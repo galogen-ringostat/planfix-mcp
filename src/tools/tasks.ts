@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost, planfixGet } from "../client.js";
 import { formatTaskList, formatSingleTask, formatCreated, formatUpdated, formatTaskFull, formatTaskSearchList } from "../format.js";
+import { postListPage } from "../paging.js";
 import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
 
 // Без явного `fields` Planfix возвращает почти пустые (id-only) объекты,
@@ -25,14 +26,12 @@ export const getTasksSchema = z.object({
 export async function handleGetTasks(params: z.infer<typeof getTasksSchema>): Promise<string> {
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? 100;
-  const result = await planfixPost("task/list", {
-    offset,
-    pageSize,
+  const { resp, hasMore } = await postListPage("task/list", {
     fields: params.fields ?? TASK_FIELDS,
     ...(params.filterId !== undefined ? { filterId: String(params.filterId) } : {}),
     ...(params.filters ? { filters: params.filters } : {}),
-  });
-  return formatTaskList(result, pageSize, offset);
+  }, ["tasks"], offset, pageSize);
+  return formatTaskList(resp, pageSize, offset, hasMore);
 }
 
 export const getTaskSchema = z.object({
@@ -103,17 +102,11 @@ export const getTaskFullSchema = z.object({
 
 export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema>): Promise<string> {
   const limit = params.commentsLimit ?? DEFAULT_COMMENTS_LIMIT;
-  // Over-fetch one comment row so has_more is exact rather than a
-  // page-boundary heuristic; the extra row is never rendered.
-  const [taskResp, commentsResp] = await Promise.all([
+  const [taskResp, comments] = await Promise.all([
     planfixGet(`task/${params.taskId}`, { fields: TASK_FIELDS }),
-    planfixPost(`task/${params.taskId}/comments/list`, {
-      offset: 0,
-      pageSize: limit + 1,
-      fields: COMMENT_FIELDS,
-    }),
+    postListPage(`task/${params.taskId}/comments/list`, { fields: COMMENT_FIELDS }, ["comments"], 0, limit),
   ]);
-  return formatTaskFull(taskResp, commentsResp, { taskId: params.taskId, limit });
+  return formatTaskFull(taskResp, comments.resp, { taskId: params.taskId, limit, hasMore: comments.hasMore });
 }
 
 // ── search_tasks — filtered discovery (read-only) ─────────────────────────────
@@ -172,12 +165,9 @@ export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema
 
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
-  // Over-fetch one row so has_more is exact; the extra row is never rendered.
-  const result = await planfixPost("task/list", {
-    offset,
-    pageSize: pageSize + 1,
+  const { resp, hasMore } = await postListPage("task/list", {
     fields: SEARCH_FIELDS,
     filters,
-  });
-  return formatTaskSearchList(result, pageSize, offset);
+  }, ["tasks"], offset, pageSize);
+  return formatTaskSearchList(resp, pageSize, offset, hasMore);
 }

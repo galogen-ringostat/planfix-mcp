@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { planfixPost } from "../client.js";
 import { formatDatatagList } from "../format.js";
+import { postListPage } from "../paging.js";
 
 const DATATAG_FIELDS = "id,name";
 
@@ -11,10 +11,10 @@ export const listDatatagsSchema = z.object({
 });
 
 export async function handleListDatatags(params: z.infer<typeof listDatatagsSchema>): Promise<string> {
-  const result = await planfixPost("datatag/list", {
-    offset: params.offset ?? 0,
-    pageSize: params.pageSize ?? 100,
+  const offset = params.offset ?? 0;
+  const pageSize = params.pageSize ?? 100;
+  const { resp, hasMore } = await postListPage("datatag/list", {
     fields: params.fields ?? DATATAG_FIELDS,
-  });
-  return formatDatatagList(result);
+  }, ["dataTags", "datatags"], offset, pageSize);
+  return formatDatatagList(resp, pageSize, offset, hasMore);
 }
