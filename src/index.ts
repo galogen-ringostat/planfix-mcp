@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "node:http";
 
-import { getTasksSchema, handleGetTasks, getTaskSchema, handleGetTask, createTaskSchema, handleCreateTask, updateTaskSchema, handleUpdateTask } from "./tools/tasks.js";
+import { getTasksSchema, handleGetTasks, getTaskSchema, handleGetTask, createTaskSchema, handleCreateTask, updateTaskSchema, handleUpdateTask, getTaskFullSchema, handleGetTaskFull, searchTasksSchema, handleSearchTasks } from "./tools/tasks.js";
 import { getContactsSchema, handleGetContacts, getContactSchema, handleGetContact, createContactSchema, handleCreateContact, updateContactSchema, handleUpdateContact } from "./tools/contacts.js";
 import { getProjectsSchema, handleGetProjects, getProjectSchema, handleGetProject } from "./tools/projects.js";
 import { getCommentsSchema, handleGetComments, addCommentSchema, handleAddComment } from "./tools/comments.js";
@@ -164,6 +164,35 @@ export function createPlanfixServer(): McpServer {
     async (params) => ({ content: [{ type: "text", text: await handleGetFile(params) }] }),
   );
 
+  server.registerTool(
+    "get_task_full",
+    {
+      description:
+        "Получить задачу вместе с её комментариями за один вызов (эквивалент get_task + get_comments). " +
+        "Используй при синхронизации карточки задачи или когда нужен и сама задача, и её обсуждение. " +
+        "Не используй, если комментарии не нужны (get_task) или нужно листать старые комментарии (get_comments с offset). " +
+        "Пример входа: { taskId: 123, commentsLimit: 30 }.",
+      inputSchema: getTaskFullSchema.shape,
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (params) => ({ content: [{ type: "text", text: await handleGetTaskFull(params) }] }),
+  );
+
+  server.registerTool(
+    "search_tasks",
+    {
+      description:
+        "Найти задачи по фильтрам (комбинируются по AND): подстрока названия (nameContains), исполнитель (assigneeId), " +
+        "статус (statusId), проект (projectId), изменённые после даты (updatedSince, ISO YYYY-MM-DD). " +
+        "Нужен минимум один фильтр; для просмотра всех задач без фильтров используй get_tasks. " +
+        "Предпочитай search_tasks листанию get_tasks, когда ищешь конкретные задачи. " +
+        'Пример входа: { nameContains: "отчёт", projectId: 572465, updatedSince: "2026-07-01" }.',
+      inputSchema: searchTasksSchema.shape,
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (params) => ({ content: [{ type: "text", text: await handleSearchTasks(params) }] }),
+  );
+
   skillMyTasks(server);
   skillCreateTask(server);
 
@@ -239,7 +268,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} запущен. 20 инструментов, 2 навыка. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} запущен. 22 инструмента, 2 навыка. Stdio.`);
   }
 }
 

@@ -175,20 +175,74 @@ export function formatSingleUser(resp: unknown): string {
 
 // ── Comments ────────────────────────────────────────────────────────────────────
 
+function commentRow(c: Json): string {
+  return line([
+    `#${val(c.id) ?? "?"}`,
+    ref(c.owner) && `автор: ${ref(c.owner)}`,
+    dateStr(c.dateTime) && dateStr(c.dateTime),
+    val(c.description),
+  ]);
+}
+
 export function formatCommentList(resp: unknown, pageSize?: number, offset?: number): string {
-  return renderList(
-    "Комментарии",
-    resp,
-    ["comments"],
-    (c) => line([
-      `#${val(c.id) ?? "?"}`,
-      ref(c.owner) && `автор: ${ref(c.owner)}`,
-      dateStr(c.dateTime) && dateStr(c.dateTime),
-      val(c.description),
-    ]),
-    pageSize,
-    offset,
-  );
+  return renderList("Комментарии", resp, ["comments"], commentRow, pageSize, offset);
+}
+
+// ── Composite: task + comments (get_task_full) ────────────────────────────────
+
+/**
+ * Renders a task card followed by its comments. `commentsResp` is expected to
+ * hold up to `limit + 1` comments (the caller over-fetches one row), so
+ * `has_more` here is exact, not a page-boundary heuristic.
+ */
+export function formatTaskFull(
+  taskResp: unknown,
+  commentsResp: unknown,
+  opts: { taskId: number; limit: number },
+): string {
+  const head = formatSingleTask(taskResp);
+  const items = findArray(commentsResp, ["comments"]);
+  if (!items) return `${head}\n\n${jsonFallback(commentsResp)}`;
+  const hasMore = items.length > opts.limit;
+  const shown = hasMore ? items.slice(0, opts.limit) : items;
+  if (shown.length === 0) return `${head}\n\nКомментарии: нет.\nhas_more: false`;
+  const body = shown.map((it, i) => `${i + 1}. ${commentRow(obj(it) ?? {})}`).join("\n");
+  const footer = hasMore
+    ? `has_more: true — fetch the remaining comments with get_comments (taskId: ${opts.taskId}, offset: ${opts.limit}).`
+    : "has_more: false";
+  return `${head}\n\nКомментарии (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+}
+
+// ── Task search (search_tasks) ────────────────────────────────────────────────
+
+function taskSearchRow(t: Json): string {
+  return line([
+    `#${val(t.id) ?? "?"}`,
+    val(t.name),
+    ref(t.status) && `статус: ${ref(t.status)}`,
+    peopleNames(t.assignees) && `исполнители: ${peopleNames(t.assignees)}`,
+    ref(t.project) && `проект: ${ref(t.project)}`,
+  ]);
+}
+
+/**
+ * Compact search result rows with exact pagination metadata. `resp` is expected
+ * to hold up to `pageSize + 1` tasks (the caller over-fetches one row), so
+ * `has_more` is exact; the extra row is never rendered.
+ */
+export function formatTaskSearchList(resp: unknown, pageSize: number, offset: number): string {
+  const items = findArray(resp, ["tasks"]);
+  if (!items) return jsonFallback(resp);
+  const hasMore = items.length > pageSize;
+  const shown = hasMore ? items.slice(0, pageSize) : items;
+  if (shown.length === 0) {
+    return "Задачи: ничего не найдено по заданным фильтрам. has_more: false. Попробуйте ослабить фильтры (например, убрать updatedSince или сократить nameContains).";
+  }
+  const body = shown.map((it, i) => `${offset + i + 1}. ${taskSearchRow(obj(it) ?? {})}`).join("\n");
+  const footer = hasMore
+    ? `has_more: true — next page: search_tasks with the same filters and offset: ${offset + pageSize}.`
+    : "has_more: false";
+  return `Задачи (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Directories / custom fields / datatags ───────────────────────────────────────

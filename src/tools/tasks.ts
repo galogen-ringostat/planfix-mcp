@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { planfixPost, planfixGet } from "../client.js";
-import { formatTaskList, formatSingleTask, formatCreated, formatUpdated } from "../format.js";
+import { formatTaskList, formatSingleTask, formatCreated, formatUpdated, formatTaskFull, formatTaskSearchList } from "../format.js";
 import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
 
 // Без явного `fields` Planfix возвращает почти пустые (id-only) объекты,
@@ -88,4 +88,89 @@ export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>)
   // подтверждение формируем из taskId.
   await planfixPost(`task/${params.taskId}`, body);
   return formatUpdated("Задача", params.taskId);
+}
+
+// ── get_task_full — task + comments in one call (read-only) ──────────────────
+
+const COMMENT_FIELDS = "id,dateTime,owner,description";
+const DEFAULT_COMMENTS_LIMIT = 30;
+
+export const getTaskFullSchema = z.object({
+  taskId: z.number().int().positive().describe("ID задачи"),
+  commentsLimit: z.number().int().min(1).max(100).optional()
+    .describe(`Максимум комментариев в ответе (по умолчанию ${DEFAULT_COMMENTS_LIMIT}, максимум 100)`),
+});
+
+export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema>): Promise<string> {
+  const limit = params.commentsLimit ?? DEFAULT_COMMENTS_LIMIT;
+  // Over-fetch one comment row so has_more is exact rather than a
+  // page-boundary heuristic; the extra row is never rendered.
+  const [taskResp, commentsResp] = await Promise.all([
+    planfixGet(`task/${params.taskId}`, { fields: TASK_FIELDS }),
+    planfixPost(`task/${params.taskId}/comments/list`, {
+      offset: 0,
+      pageSize: limit + 1,
+      fields: COMMENT_FIELDS,
+    }),
+  ]);
+  return formatTaskFull(taskResp, commentsResp, { taskId: params.taskId, limit });
+}
+
+// ── search_tasks — filtered discovery (read-only) ─────────────────────────────
+
+// Planfix complex task filter mapping
+// (https://planfix.com/help/REST_API:_Complex_task_filters):
+//   type 8  — task name; operator "equal" means "contains" for string values
+//   type 2  — assignee;  value is the prefixed string "user:<id>"
+//   type 10 — status;    value is the numeric status id
+//   type 5  — project;   value is the numeric project id
+//   type 38 — date of last change; operator "gt",
+//             value { dateType: "otherDate", dateValue: "DD-MM-YYYY" }
+// Filters combine with AND.
+
+const SEARCH_FIELDS = "id,name,status,assignees,project";
+const DEFAULT_SEARCH_PAGE_SIZE = 50;
+
+export const searchTasksSchema = z.object({
+  nameContains: z.string().min(1).optional().describe("Подстрока в названии задачи"),
+  assigneeId: z.number().int().positive().optional().describe("ID исполнителя (сотрудника). Найти ID: инструмент list_users"),
+  statusId: z.number().int().positive().optional().describe("ID статуса задачи"),
+  projectId: z.number().int().positive().optional().describe("ID проекта"),
+  updatedSince: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "updatedSince must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
+    .optional()
+    .describe("Только задачи, изменённые после этой даты (ISO, YYYY-MM-DD)"),
+  offset: z.number().int().min(0).optional().describe("Смещение для пагинации (по умолчанию 0)"),
+  pageSize: z.number().int().min(1).max(100).optional()
+    .describe(`Результатов на странице (по умолчанию ${DEFAULT_SEARCH_PAGE_SIZE}, максимум 100)`),
+});
+
+export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema>): Promise<string> {
+  const filters: Array<{ type: number; operator: string; value: unknown }> = [];
+  if (params.nameContains !== undefined) filters.push({ type: 8, operator: "equal", value: params.nameContains });
+  if (params.assigneeId !== undefined) filters.push({ type: 2, operator: "equal", value: `user:${params.assigneeId}` });
+  if (params.statusId !== undefined) filters.push({ type: 10, operator: "equal", value: params.statusId });
+  if (params.projectId !== undefined) filters.push({ type: 5, operator: "equal", value: params.projectId });
+  if (params.updatedSince !== undefined) {
+    const [y, m, d] = params.updatedSince.split("-");
+    filters.push({ type: 38, operator: "gt", value: { dateType: "otherDate", dateValue: `${d}-${m}-${y}` } });
+  }
+
+  if (filters.length === 0) {
+    throw new Error(
+      "search_tasks requires at least one filter: nameContains, assigneeId, statusId, projectId, or updatedSince. " +
+      "To page through all tasks without filters, use get_tasks instead.",
+    );
+  }
+
+  const offset = params.offset ?? 0;
+  const pageSize = params.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
+  // Over-fetch one row so has_more is exact; the extra row is never rendered.
+  const result = await planfixPost("task/list", {
+    offset,
+    pageSize: pageSize + 1,
+    fields: SEARCH_FIELDS,
+    filters,
+  });
+  return formatTaskSearchList(result, pageSize, offset);
 }
