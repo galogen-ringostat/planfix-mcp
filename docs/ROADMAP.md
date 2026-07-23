@@ -20,9 +20,9 @@ Development loop: friction observed in a live session → item recorded here →
 
 ## P3 — hygiene per Anthropic checklist (background, batch with other work)
 
-4. **Tool annotations**: `readOnlyHint` / `destructiveHint` / `idempotentHint` on all 20 tools (currently absent).
-5. **Pagination metadata**: list tools return `has_more` + next offset hint instead of a bare page.
-6. **`response_format` parameter** (`CONCISE` | `DETAILED`) on the heaviest read tools (`get_task`, `get_tasks`, `get_contacts`) to cut token cost when the agent only needs identifiers.
+4. **Tool annotations**: `readOnlyHint` / `destructiveHint` / `idempotentHint` on all 20 tools (currently absent). **Done 2026-07-24** — all 24 tools migrated to `registerTool` with annotations; descriptions and `.describe()` strings also moved to English (test-enforced), awaiting Layer 3 read-only sweep.
+5. **Pagination metadata**: list tools return `has_more` + next offset hint instead of a bare page. **Done 2026-07-24** — exact `has_more` via `src/paging.ts` (over-fetch, or a one-row probe at the API's 100 cap); only schema addition: `list_custom_fields` gained `offset`/`pageSize` (client-side paging — its GET endpoint has none).
+6. **`response_format` parameter** (`CONCISE` | `DETAILED`) on the heaviest read tools (`get_task`, `get_tasks`, `get_contacts`) to cut token cost when the agent only needs identifiers. **Done 2026-07-24** — also on `get_task_full`; default DETAILED, backward compatible.
 
 ## Explicitly out of scope
 
