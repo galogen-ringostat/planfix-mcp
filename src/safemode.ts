@@ -34,7 +34,7 @@ function requireTestProjectId(tool: string, target: string): number {
   if (testProjectId === null) {
     throw new Error(
       `Safe mode: ${tool} on ${target} refused — PLANFIX_SAFE_MODE is set but PLANFIX_TEST_PROJECT_ID is unset or not a positive integer. ` +
-      `Fix: set PLANFIX_TEST_PROJECT_ID to the MCP-TEST project id (see docs/TESTING.md § Layer 3), or unset PLANFIX_SAFE_MODE to disable the guard.`,
+      `Fix: set PLANFIX_TEST_PROJECT_ID to the MCP-TEST project id (see docs/TESTING.md § Layer 3).`,
     );
   }
   return testProjectId;
@@ -47,7 +47,7 @@ export function assertCreateTaskAllowed(projectId: number | undefined): void {
   if (projectId !== testProjectId) {
     throw new Error(
       `Safe mode: create_task refused — target project is ${projectId ?? "(not specified)"}, but only the test project ${testProjectId} (MCP-TEST) accepts writes in safe mode. ` +
-      `Fix: pass projectId: ${testProjectId}, or unset PLANFIX_SAFE_MODE to disable the guard.`,
+      `Fix: pass projectId: ${testProjectId}.`,
     );
   }
 }
@@ -67,7 +67,7 @@ export async function assertTaskInTestProject(tool: string, taskId: number): Pro
     const actual = typeof actualProjectId === "number" ? `project ${actualProjectId}` : "no readable project";
     throw new Error(
       `Safe mode: ${tool} refused — task ${taskId} has ${actual}, not the test project ${testProjectId} (MCP-TEST). ` +
-      `Fix: target a task inside project ${testProjectId} (create one with create_task), or unset PLANFIX_SAFE_MODE to disable the guard.`,
+      `Fix: target a task inside project ${testProjectId} (create one with create_task).`,
     );
   }
 }
@@ -81,6 +81,6 @@ export function refuseUnscopedMutation(tool: string, target: string, reason: str
   if (!isSafeModeOn()) return;
   throw new Error(
     `Safe mode: ${tool} on ${target} refused — ${reason}, so it cannot be confined to the test project. ` +
-    `Fix: unset PLANFIX_SAFE_MODE to disable the guard (production writes require a session without safe mode; see docs/TESTING.md).`,
+    `This tool cannot be used while safe mode is on. Report to the operator; do not attempt to disable safe mode.`,
   );
 }

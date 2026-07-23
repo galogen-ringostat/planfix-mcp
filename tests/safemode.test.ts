@@ -216,6 +216,45 @@ describe("safe mode ON — fail closed without a valid PLANFIX_TEST_PROJECT_ID",
   });
 });
 
+describe("refusal messages never instruct the agent to disable the guard", () => {
+  // The consumer is an LLM agent: a corrective action like "unset PLANFIX_SAFE_MODE"
+  // is an instruction it may follow when stuck, defeating the guard's purpose.
+  it("no refusal message contains 'unset PLANFIX_SAFE_MODE' or similar disable guidance", async () => {
+    const { handleCreateTask, handleUpdateTask } = await import("../src/tools/tasks.js");
+    const { handleAddComment } = await import("../src/tools/comments.js");
+    const { handleCreateContact, handleUpdateContact } = await import("../src/tools/contacts.js");
+    const { handleUploadFileFromUrl } = await import("../src/tools/files.js");
+
+    const refusals: Array<() => Promise<string>> = [
+      // fail-closed (no test project id)
+      () => { enableSafeMode(undefined); return handleCreateTask({ name: "x", projectId: TEST_PROJECT }); },
+      () => { enableSafeMode(undefined); return handleUpdateTask({ taskId: 10, name: "x" }); },
+      // wrong / missing project
+      () => { enableSafeMode(String(TEST_PROJECT)); return handleCreateTask({ name: "x", projectId: OTHER_PROJECT }); },
+      () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleUpdateTask({ taskId: 10, name: "x" }); },
+      () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleAddComment({ taskId: 10, body: "x" }); },
+      // unscoped mutations
+      () => { enableSafeMode(String(TEST_PROJECT)); return handleCreateContact({ name: "x" }); },
+      () => { enableSafeMode(String(TEST_PROJECT)); return handleUpdateContact({ contactId: 5, name: "x" }); },
+      () => { enableSafeMode(String(TEST_PROJECT)); return handleUploadFileFromUrl({ url: "https://x" }); },
+    ];
+
+    for (const trigger of refusals) {
+      vi.unstubAllEnvs();
+      vi.clearAllMocks();
+      let message = "";
+      await trigger().then(
+        () => { throw new Error("expected a safe-mode refusal, but the call succeeded"); },
+        (err: Error) => { message = err.message; },
+      );
+      expect(message).toContain("Safe mode:");
+      expect(message).not.toContain("unset PLANFIX_SAFE_MODE");
+      expect(message.toLowerCase()).not.toContain("disable the guard");
+      expect(message.toLowerCase()).not.toMatch(/without (planfix_)?safe.mode/);
+    }
+  });
+});
+
 describe("safe mode activation edge cases", () => {
   it("unrecognized truthy values enable safe mode (fail safe)", async () => {
     const { isSafeModeOn } = await import("../src/safemode.js");
