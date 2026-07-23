@@ -35,6 +35,8 @@ Current value: `PLANFIX_TEST_PROJECT_ID=572465` (project `MCP-Test`, created by 
 3. **Never touch prod records**: no update/delete/comment on any record outside `MCP-TEST`, even "harmless" ones, even to revert a mistake — report instead.
 4. **Contacts caution**: `create_contact`/`update_contact` have no project scoping in Planfix. Avoid live contact tests; if unavoidable, use obviously-fake data prefixed `[MCP-TEST]` and get explicit approval first.
 5. **Cleanup**: prefer leaving `[MCP-TEST]` records in the test project (auditable) over deleting; batch-clean manually from the UI when noisy.
+6. **Assignees**: test tasks may assign ONLY Galogen (user 403). Assigning anyone else sends a real notification to a real employee.
+7. **Refusal paths are verified in unit tests only.** Never aim a live mutating call at a record outside `MCP-Test` "expecting the guard to refuse" — if the guard has a bug, that call mutates production. Live testing exercises allowed paths only.
 
 ## Safe mode — deterministic guard (spec; implement in the fork)
 
