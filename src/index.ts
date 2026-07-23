@@ -38,6 +38,7 @@ export function createPlanfixServer(): McpServer {
       description:
         "List Planfix tasks with pagination and raw Planfix filters. " +
         "Use it to page through tasks when no specific search criteria exist; for criteria-driven discovery prefer search_tasks. " +
+        'Set response_format: "CONCISE" for identifier-grade rows (id, name, status) when you only need IDs for a follow-up call. ' +
         'Input example: { pageSize: 50, offset: 0 }.',
       inputSchema: getTasksSchema.shape,
       annotations: READ_ONLY,
@@ -51,6 +52,7 @@ export function createPlanfixServer(): McpServer {
       description:
         "Get one task by ID (name, description, status, priority, assignees, project, dates). " +
         "Use get_task_full instead when you also need the task's comments. " +
+        'Set response_format: "CONCISE" for an identifier-grade line (id, name, status) when you only need to confirm the task for a follow-up call. ' +
         "Input example: { taskId: 123 }.",
       inputSchema: getTaskSchema.shape,
       annotations: READ_ONLY,
@@ -90,6 +92,7 @@ export function createPlanfixServer(): McpServer {
       description:
         "List Planfix contacts with pagination and an optional saved filter. " +
         "Use get_contact when you already know the contact ID. " +
+        'Set response_format: "CONCISE" for identifier-grade rows (id, name) when you only need IDs for a follow-up call. ' +
         "Input example: { pageSize: 50 }.",
       inputSchema: getContactsSchema.shape,
       annotations: READ_ONLY,
@@ -292,6 +295,7 @@ export function createPlanfixServer(): McpServer {
         "Get a task together with its comments in a single call (equivalent to get_task + get_comments). " +
         "Use it when you need both the task card and its discussion — e.g. syncing a task mirror. " +
         "Use get_task when comments are not needed, or get_comments with offset to page through older comments. " +
+        'Set response_format: "CONCISE" to trim output to identifiers (task id/name/status; comment ids, authors, dates without text). ' +
         "Input example: { taskId: 123, commentsLimit: 30 }.",
       inputSchema: getTaskFullSchema.shape,
       annotations: READ_ONLY,

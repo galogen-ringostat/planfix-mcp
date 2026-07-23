@@ -97,13 +97,19 @@ export function formatTask(t: Json): string {
   ]);
 }
 
-export function formatTaskList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Задачи", "get_tasks", resp, ["tasks"], (t) => formatTask(t), pageSize, offset, hasMore);
+/** Identifier-grade task row for response_format: "CONCISE". */
+function conciseTaskRow(t: Json): string {
+  return line([`#${val(t.id) ?? "?"}`, val(t.name), ref(t.status) && `статус: ${ref(t.status)}`]);
 }
 
-export function formatSingleTask(resp: unknown): string {
+export function formatTaskList(resp: unknown, pageSize: number, offset: number, hasMore: boolean, concise = false): string {
+  return renderPagedList("Задачи", "get_tasks", resp, ["tasks"], (t) => (concise ? conciseTaskRow(t) : formatTask(t)), pageSize, offset, hasMore);
+}
+
+export function formatSingleTask(resp: unknown, concise = false): string {
   const t = obj(obj(resp)?.task) ?? obj(resp);
   if (!t) return jsonFallback(resp);
+  if (concise) return conciseTaskRow(t);
   const desc = val(t.description);
   return [
     formatTask(t),
@@ -131,8 +137,13 @@ export function formatContact(c: Json): string {
   ]);
 }
 
-export function formatContactList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Контакты", "get_contacts", resp, ["contacts"], (c) => formatContact(c), pageSize, offset, hasMore);
+/** Identifier-grade contact row for response_format: "CONCISE". */
+function conciseContactRow(c: Json): string {
+  return line([`#${val(c.id) ?? "?"}`, val(c.name) ?? line([val(c.lastname), val(c.firstname)]) ?? undefined]);
+}
+
+export function formatContactList(resp: unknown, pageSize: number, offset: number, hasMore: boolean, concise = false): string {
+  return renderPagedList("Контакты", "get_contacts", resp, ["contacts"], (c) => (concise ? conciseContactRow(c) : formatContact(c)), pageSize, offset, hasMore);
 }
 
 export function formatSingleContact(resp: unknown): string {
@@ -179,17 +190,17 @@ export function formatSingleUser(resp: unknown): string {
 
 // ── Comments ────────────────────────────────────────────────────────────────────
 
-function commentRow(c: Json): string {
+function commentRow(c: Json, concise = false): string {
   return line([
     `#${val(c.id) ?? "?"}`,
     ref(c.owner) && `автор: ${ref(c.owner)}`,
     dateStr(c.dateTime) && dateStr(c.dateTime),
-    val(c.description),
+    concise ? undefined : val(c.description),
   ]);
 }
 
 export function formatCommentList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Комментарии", "get_comments", resp, ["comments"], commentRow, pageSize, offset, hasMore);
+  return renderPagedList("Комментарии", "get_comments", resp, ["comments"], (c) => commentRow(c), pageSize, offset, hasMore);
 }
 
 // ── Composite: task + comments (get_task_full) ────────────────────────────────
@@ -202,15 +213,15 @@ export function formatCommentList(resp: unknown, pageSize: number, offset: numbe
 export function formatTaskFull(
   taskResp: unknown,
   commentsResp: unknown,
-  opts: { taskId: number; limit: number; hasMore: boolean },
+  opts: { taskId: number; limit: number; hasMore: boolean; concise?: boolean },
 ): string {
-  const head = formatSingleTask(taskResp);
+  const head = formatSingleTask(taskResp, opts.concise);
   const items = findArray(commentsResp, ["comments"]);
   if (!items) return `${head}\n\n${jsonFallback(commentsResp)}`;
   const hasMore = opts.hasMore;
   const shown = items.length > opts.limit ? items.slice(0, opts.limit) : items;
   if (shown.length === 0) return `${head}\n\nКомментарии: нет.\nhas_more: false`;
-  const body = shown.map((it, i) => `${i + 1}. ${commentRow(obj(it) ?? {})}`).join("\n");
+  const body = shown.map((it, i) => `${i + 1}. ${commentRow(obj(it) ?? {}, opts.concise)}`).join("\n");
   const footer = hasMore
     ? `has_more: true — fetch the remaining comments with get_comments (taskId: ${opts.taskId}, offset: ${opts.limit}).`
     : "has_more: false";
