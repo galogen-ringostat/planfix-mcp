@@ -24,6 +24,21 @@ Development loop: friction observed in a live session → item recorded here →
 5. **Pagination metadata**: list tools return `has_more` + next offset hint instead of a bare page. **Done 2026-07-24** — exact `has_more` via `src/paging.ts` (over-fetch, or a one-row probe at the API's 100 cap); only schema addition: `list_custom_fields` gained `offset`/`pageSize` (client-side paging — its GET endpoint has none).
 6. **`response_format` parameter** (`CONCISE` | `DETAILED`) on the heaviest read tools (`get_task`, `get_tasks`, `get_contacts`) to cut token cost when the agent only needs identifiers. **Done 2026-07-24** — also on `get_task_full`; default DETAILED, backward compatible.
 
+## P4 — log_workday (approved next, 2026-07-24)
+
+7. **`log_workday`** — composite day-level time logging on top of `add_time_entry`.
+   Takes a whole working day (list of per-task intervals) and **deterministically enforces the operator's logging conventions before writing anything**: intervals must not overlap across tasks; no interval may cross the 14:00–15:00 lunch break (an interval spanning it is split into two entries); entries for the same task+period chain onto one comment via `commentId`. Rationale: these rules currently live only as instructions to the consuming agent (operator's vault, planfix page § Working conventions) — deterministic code beats discipline. Approved by the operator 2026-07-24 as the next slice; detailed brief to follow from the reviewing session.
+
+## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
+
+Source: 2026-07-24 benchmark against peer PM-tool MCP servers (Atlassian Rovo MCP for Jira — 16 tools incl. JQL search, transitions, worklogs, linking, no deletes; ClickUp/Quire community servers). The fork already matches the peer baseline; items below are candidates, not commitments, per the guiding rule.
+
+- **`create_task_from_template`** — RevOps runs 13 `[RevOps] / …` task templates (Priority/SP/Status fields); bare `create_task` bypasses the standard. Needs a spike first: does REST expose task templates?
+- **`run_report`** — the "All completed tasks by employee" report is the SP source for the operator's velocity metric; peer precedent exists (popstas planfix server exposes report list/generation). Would automate velocity collection.
+- **`get_task_children`** — subtask listing (operator's autofill hours live in Ф3/Ф4 subtasks; the vault task mirror cannot see hierarchy today).
+- **`update_comment`** — fix a typo in an already-posted comment without the UI; cheap (API key scopes already allow comment update).
+- Not carried over from peers (no plausible local use): task linking (Jira), boards/spaces (ClickUp), MCP prompts beyond the existing two.
+
 ## Explicitly out of scope
 
 - **Checklists** — not exposed by the Planfix REST API at all (verified empirically 2026-07 and against API docs). No MCP-side work can fix this; revisit only if Planfix ships the endpoint.
