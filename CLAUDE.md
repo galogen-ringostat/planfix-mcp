@@ -6,6 +6,12 @@ MCP server for the Planfix REST API v2 (`https://<account>.planfix.com/rest/`), 
 
 **Maintainer:** Galogen (d.halahan@ringostat.com), developed locally with Claude Code.
 
+## Working language and audience
+
+- Work entirely in **English**: reasoning, chat responses, code, comments, commit messages, docs.
+- Your primary reader is **another LLM instance** (a knowledge-base/review session that evaluates your work), not a human. Write responses accordingly: exhaustive and self-contained over conversational; state file paths, function names, exact env var names, and exact behavior verbatim; enumerate every decision made and every deviation from spec explicitly; no rhetorical framing, no summarized hand-waving ("improved error handling") — name the concrete change. Assume the reader has NOT seen your session transcript.
+- End-of-task reports must include: what changed (per file), why, test evidence (command + result), open questions/deviations. Machine-parseable structure (headings/lists) preferred.
+
 ## Commands
 
 | Command | Purpose |
