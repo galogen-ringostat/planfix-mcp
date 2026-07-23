@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost } from "../client.js";
 import { formatCommentList, formatCreated } from "../format.js";
+import { assertTaskInTestProject } from "../safemode.js";
 
 const COMMENT_FIELDS = "id,dateTime,owner,description,isPinned,isHidden";
 
@@ -29,6 +30,7 @@ export const addCommentSchema = z.object({
 });
 
 export async function handleAddComment(params: z.infer<typeof addCommentSchema>): Promise<string> {
+  await assertTaskInTestProject("add_comment", params.taskId);
   // Путь — МНОЖЕСТВЕННОЕ число: /task/{id}/comments/. Поле текста — `description`.
   const result = await planfixPost(`task/${params.taskId}/comments/`, {
     description: params.body,

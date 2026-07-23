@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost, planfixGet } from "../client.js";
 import { formatContactList, formatSingleContact, formatCreated, formatUpdated } from "../format.js";
+import { refuseUnscopedMutation } from "../safemode.js";
 
 const CONTACT_FIELDS = "id,name,midname,lastname,email,phones,company";
 
@@ -42,6 +43,7 @@ export const createContactSchema = z.object({
 });
 
 export async function handleCreateContact(params: z.infer<typeof createContactSchema>): Promise<string> {
+  refuseUnscopedMutation("create_contact", `contact "${params.name}"`, "contacts have no project scoping in Planfix");
   const body: Record<string, unknown> = { name: params.name };
   if (params.email) body.email = params.email;
   if (params.phone) body.phones = [{ number: params.phone }];
@@ -60,6 +62,7 @@ export const updateContactSchema = z.object({
 });
 
 export async function handleUpdateContact(params: z.infer<typeof updateContactSchema>): Promise<string> {
+  refuseUnscopedMutation("update_contact", `contact ${params.contactId}`, "contacts have no project scoping in Planfix");
   const body: Record<string, unknown> = {};
   if (params.name) body.name = params.name;
   if (params.email) body.email = params.email;

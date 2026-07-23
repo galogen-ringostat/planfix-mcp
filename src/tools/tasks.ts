@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixPost, planfixGet } from "../client.js";
 import { formatTaskList, formatSingleTask, formatCreated, formatUpdated } from "../format.js";
+import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
 
 // Без явного `fields` Planfix возвращает почти пустые (id-only) объекты,
 // поэтому всегда запрашиваем осмысленный набор полей.
@@ -55,6 +56,7 @@ export const createTaskSchema = z.object({
 });
 
 export async function handleCreateTask(params: z.infer<typeof createTaskSchema>): Promise<string> {
+  assertCreateTaskAllowed(params.projectId);
   const body: Record<string, unknown> = { name: params.name };
   if (params.description) body.description = params.description;
   if (params.projectId) body.project = { id: params.projectId };
@@ -75,6 +77,7 @@ export const updateTaskSchema = z.object({
 });
 
 export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>): Promise<string> {
+  await assertTaskInTestProject("update_task", params.taskId);
   const body: Record<string, unknown> = {};
   if (params.name) body.name = params.name;
   if (params.description) body.description = params.description;

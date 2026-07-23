@@ -40,6 +40,8 @@ Current value: `PLANFIX_TEST_PROJECT_ID=572465` (project `MCP-Test`, created by 
 
 Instruction-level discipline is not enough; the guard must live in code (deterministic > discipline).
 
+> **Status: implemented** in `src/safemode.ts`, wired into `handleCreateTask`, `handleUpdateTask`, `handleAddComment`, `handleCreateContact`, `handleUpdateContact`, `handleUploadFileFromUrl`. Unit tests: `tests/safemode.test.ts`. Note: `upload_file_from_url` currently has no `taskId` parameter (it uploads a standalone file), so there is no target task to resolve — it is refused entirely in safe mode, like contacts.
+
 - Env: `PLANFIX_SAFE_MODE=1` + `PLANFIX_TEST_PROJECT_ID=<id>`.
 - When safe mode is ON, every mutating tool (create/update/upload/comment) must verify the target lives in `PLANFIX_TEST_PROJECT_ID` before issuing the HTTP call:
   - `create_task`: forced/validated `project.id === TEST_PROJECT_ID`.
