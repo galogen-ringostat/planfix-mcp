@@ -36,6 +36,10 @@ Development loop: friction observed in a live session → item recorded here →
    Friction: the operator's time entries live in subtasks (e.g. autofill hours in Ф3/Ф4 branches) and the vault task mirror cannot see task hierarchy today — finding subtasks means UI navigation. Promoted from the researched backlog by operator decision 2026-07-24.
    Note (observed while checking the swagger for a children endpoint, 2026-07-24): the REST v2 swagger now lists `/task/{id}/checklist`, `/task/{id}/checklist/list`, `/task/{id}/checklist/{itemId}` — this contradicts the "checklists not exposed" out-of-scope entry below; worth a re-verification spike before dismissing checklists again.
 
+## P6 — checklist re-verification spike (approved 2026-07-24)
+
+9. **Checklist spike** — re-verify the "checklists are not exposed" verdict (2026-07-20) against the `/task/{id}/checklist*` endpoints discovered in the current swagger during P5. Friction: checklists are the single biggest manual gap — the operator pastes them by hand into every task-context conversation. Spike first, tools only after design review (P2 precedent).
+
 ## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
 
 Source: 2026-07-24 benchmark against peer PM-tool MCP servers (Atlassian Rovo MCP for Jira — 16 tools incl. JQL search, transitions, worklogs, linking, no deletes; ClickUp/Quire community servers). The fork already matches the peer baseline; items below are candidates, not commitments, per the guiding rule.
