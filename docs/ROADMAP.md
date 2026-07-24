@@ -32,7 +32,7 @@ Development loop: friction observed in a live session → item recorded here →
 
 ## P5 — get_task_children (approved 2026-07-24)
 
-8. **`get_task_children`** — direct subtask listing for a given parent task (read-only). **Implemented 2026-07-24** (`src/tools/tasks.ts`; task/list complex filter type 73 "direct parent task" — no dedicated endpoint exists; type 307 = recursive subtree, deliberately not used), awaiting Layer 3 read-only review against a real parent with known subtasks.
+8. **`get_task_children`** — direct subtask listing for a given parent task (read-only). **Implemented 2026-07-24** (`src/tools/tasks.ts`; task/list complex filter type 73 "direct parent task" — no dedicated endpoint exists; type 307 = recursive subtree, deliberately not used), **Layer 3 verified 2026-07-24**: real hierarchy — parent 401356 (autofill Deal branch) returned exactly its 9 direct Ф0-Ф8 subtasks (parent itself absent from the list); a leaf subtask and an unrelated task both return the empty hint. Direct-only semantics consistent with live data + the 73-vs-307 docs distinction (no 3-level hierarchy existed to probe grandchild exclusion directly).
    Friction: the operator's time entries live in subtasks (e.g. autofill hours in Ф3/Ф4 branches) and the vault task mirror cannot see task hierarchy today — finding subtasks means UI navigation. Promoted from the researched backlog by operator decision 2026-07-24.
    Note (observed while checking the swagger for a children endpoint, 2026-07-24): the REST v2 swagger now lists `/task/{id}/checklist`, `/task/{id}/checklist/list`, `/task/{id}/checklist/{itemId}` — this contradicts the "checklists not exposed" out-of-scope entry below; worth a re-verification spike before dismissing checklists again.
 
