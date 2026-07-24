@@ -241,20 +241,30 @@ function taskSearchRow(t: Json): string {
 }
 
 /**
- * Compact search result rows with exact pagination metadata. `resp` may hold
- * up to `pageSize + 1` tasks (over-fetch, see src/paging.ts) — the extra row
- * is sliced off; `hasMore` is computed by the caller and exact.
+ * Compact task rows with exact pagination metadata. `resp` may hold up to
+ * `pageSize + 1` tasks (over-fetch, see src/paging.ts) — the extra row is
+ * sliced off; `hasMore` is computed by the caller and exact. `opts` retargets
+ * the footer/empty texts for other task-list-shaped tools (get_task_children).
  */
-export function formatTaskSearchList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+export function formatTaskSearchList(
+  resp: unknown,
+  pageSize: number,
+  offset: number,
+  hasMore: boolean,
+  opts?: { tool?: string; emptyText?: string; concise?: boolean },
+): string {
+  const tool = opts?.tool ?? "search_tasks";
   const items = findArray(resp, ["tasks"]);
   if (!items) return jsonFallback(resp);
   const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
   if (shown.length === 0) {
-    return "No tasks matched the given filters. has_more: false. Try relaxing the filters (e.g. drop updatedSince or shorten nameContains).";
+    return opts?.emptyText
+      ?? "No tasks matched the given filters. has_more: false. Try relaxing the filters (e.g. drop updatedSince or shorten nameContains).";
   }
-  const body = shown.map((it, i) => `${offset + i + 1}. ${taskSearchRow(obj(it) ?? {})}`).join("\n");
+  const row = opts?.concise ? conciseTaskRow : taskSearchRow;
+  const body = shown.map((it, i) => `${offset + i + 1}. ${row(obj(it) ?? {})}`).join("\n");
   const footer = hasMore
-    ? `has_more: true — next page: search_tasks with the same filters and offset: ${offset + pageSize}.`
+    ? `has_more: true — next page: ${tool} with the same filters and offset: ${offset + pageSize}.`
     : "has_more: false";
   return `Задачи (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }

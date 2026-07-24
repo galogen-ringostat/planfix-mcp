@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "node:http";
 
-import { getTasksSchema, handleGetTasks, getTaskSchema, handleGetTask, createTaskSchema, handleCreateTask, updateTaskSchema, handleUpdateTask, getTaskFullSchema, handleGetTaskFull, searchTasksSchema, handleSearchTasks } from "./tools/tasks.js";
+import { getTasksSchema, handleGetTasks, getTaskSchema, handleGetTask, createTaskSchema, handleCreateTask, updateTaskSchema, handleUpdateTask, getTaskFullSchema, handleGetTaskFull, searchTasksSchema, handleSearchTasks, getTaskChildrenSchema, handleGetTaskChildren } from "./tools/tasks.js";
 import { getContactsSchema, handleGetContacts, getContactSchema, handleGetContact, createContactSchema, handleCreateContact, updateContactSchema, handleUpdateContact } from "./tools/contacts.js";
 import { getProjectsSchema, handleGetProjects, getProjectSchema, handleGetProject } from "./tools/projects.js";
 import { getCommentsSchema, handleGetComments, addCommentSchema, handleAddComment } from "./tools/comments.js";
@@ -350,6 +350,21 @@ export function createPlanfixServer(): McpServer {
   );
 
   server.registerTool(
+    "get_task_children",
+    {
+      description:
+        "List the DIRECT subtasks of a parent task (one level only — no recursive tree walk; recurse by calling it again on a child if needed). " +
+        "Use it to discover task hierarchy, e.g. finding the subtasks where time is logged. " +
+        "Not for comments (get_task_full) or criteria search (search_tasks). " +
+        'Set response_format: "CONCISE" for identifier-grade rows (id, name, status). ' +
+        "Input example: { taskId: 123 }.",
+      inputSchema: getTaskChildrenSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetTaskChildren(params)),
+  );
+
+  server.registerTool(
     "log_workday",
     {
       description:
@@ -444,7 +459,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 25 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 26 tools, 2 skills. Stdio.`);
   }
 }
 

@@ -191,3 +191,38 @@ export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema
   }, ["tasks"], offset, pageSize);
   return formatTaskSearchList(resp, pageSize, offset, hasMore);
 }
+
+// ── get_task_children — direct subtasks of a parent (read-only) ───────────────
+
+// Mechanism (https://planfix.com/help/REST_API:_Complex_task_filters):
+//   POST task/list with complex filter type 73 ("direct parent task"),
+//   operator "equal", value = the parent task id — returns DIRECT children
+//   only.
+// Rejected alternatives:
+//   - filter type 307 ("parent task tree") — matches the whole recursive
+//     subtree; this tool is deliberately non-recursive;
+//   - a dedicated children endpoint — none exists in the REST v2 swagger
+//     (checked 2026-07-24: no /task/{id}/children or similar path).
+
+export const getTaskChildrenSchema = z.object({
+  taskId: z.number().int().positive().describe("Parent task ID"),
+  offset: z.number().int().min(0).optional().describe("Pagination offset (default 0)"),
+  pageSize: z.number().int().min(1).max(100).optional()
+    .describe(`Subtasks per page (default ${DEFAULT_SEARCH_PAGE_SIZE}, max 100)`),
+  response_format: responseFormatSchema,
+});
+
+export async function handleGetTaskChildren(params: z.infer<typeof getTaskChildrenSchema>): Promise<string> {
+  const offset = params.offset ?? 0;
+  const pageSize = params.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
+  const concise = params.response_format === "CONCISE";
+  const { resp, hasMore } = await postListPage("task/list", {
+    fields: concise ? CONCISE_TASK_FIELDS : SEARCH_FIELDS,
+    filters: [{ type: 73, operator: "equal", value: params.taskId }],
+  }, ["tasks"], offset, pageSize);
+  return formatTaskSearchList(resp, pageSize, offset, hasMore, {
+    tool: "get_task_children",
+    emptyText: `Task ${params.taskId} has no subtasks. has_more: false`,
+    concise,
+  });
+}
