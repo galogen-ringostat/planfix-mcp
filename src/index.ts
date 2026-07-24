@@ -14,7 +14,7 @@ import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchem
 import { listCustomFieldsSchema, handleListCustomFields } from "./tools/customfields.js";
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
-import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries } from "./tools/timeentries.js";
+import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday } from "./tools/timeentries.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
 
 const VERSION = "1.2.0";
@@ -349,6 +349,24 @@ export function createPlanfixServer(): McpServer {
     async (params) => text(await handleGetTaskTimeEntries(params)),
   );
 
+  server.registerTool(
+    "log_workday",
+    {
+      description:
+        "Log a whole working day of time entries in one validated call (composite over add_time_entry). " +
+        "The day is validated BEFORE anything is written: intervals must be well-formed and non-overlapping across the whole day (regardless of task), " +
+        "and no entry may cross the 14:00-15:00 lunch break — an interval spanning the break is auto-split (12:30-16:45 becomes 12:30-14:00 + 15:00-16:45), " +
+        "while an interval inside the break is rejected. Any violation refuses the entire day; nothing is partially written. " +
+        "Writes one comment per task per call: the task's first entry opens the comment, the rest chain onto it via commentId. " +
+        "Set validate_only: true to preview the resolved plan (post-split intervals, per-task and day totals) with zero writes — RECOMMENDED before the real run. " +
+        "If a write fails mid-run the tool stops, reports exactly what was written (entries cannot be rolled back) and what was not, and never retries. " +
+        'Input example: { date: "2026-07-24", userId: 403, entries: [{ taskId: 123, timeFrom: "09:00", timeTo: "11:00", type: "Task", comment: "feature work" }], validate_only: true }.',
+      inputSchema: logWorkdaySchema.shape,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (params) => ({ content: [{ type: "text", text: await handleLogWorkday(params) }] }),
+  );
+
   skillMyTasks(server);
   skillCreateTask(server);
 
@@ -424,7 +442,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 24 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 25 tools, 2 skills. Stdio.`);
   }
 }
 
