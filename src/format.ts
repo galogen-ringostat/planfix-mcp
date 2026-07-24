@@ -326,6 +326,35 @@ export function formatTimeEntryList(
   return `Записи времени (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
+// ── Checklists (get_task_checklist) ───────────────────────────────────────────
+
+/**
+ * Checklist rows `#id | name | [x]/[ ]` (+ assignees when present) with exact
+ * pagination metadata; `resp` may hold up to `pageSize + 1` items (over-fetch,
+ * see src/paging.ts).
+ */
+export function formatChecklist(resp: unknown, pageSize: number, offset: number, hasMore: boolean, taskId: number): string {
+  const items = findArray(resp, ["items"]);
+  if (!items) return jsonFallback(resp);
+  const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
+  if (shown.length === 0) return `Task ${taskId} has no checklist items. has_more: false`;
+  const body = shown
+    .map((it, i) => {
+      const e = obj(it) ?? {};
+      return `${offset + i + 1}. ${line([
+        `#${val(e.id) ?? "?"}`,
+        val(e.name),
+        e.isDone === true ? "[x]" : "[ ]",
+        peopleNames(e.assignees) && `исполнители: ${peopleNames(e.assignees)}`,
+      ])}`;
+    })
+    .join("\n");
+  const footer = hasMore
+    ? `has_more: true — next page: get_task_checklist with offset: ${offset + pageSize}.`
+    : "has_more: false";
+  return `Чек-лист (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+}
+
 // ── Directories / custom fields / datatags ───────────────────────────────────────
 
 export function formatDirectoryList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {

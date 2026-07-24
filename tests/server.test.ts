@@ -7,11 +7,11 @@ const READ_ONLY_TOOLS = [
   "get_tasks", "get_task", "get_contacts", "get_contact", "get_projects", "get_project",
   "get_comments", "list_users", "get_user", "list_directories", "list_directory_entries",
   "list_custom_fields", "list_datatags", "get_file",
-  "get_task_full", "search_tasks", "get_task_time_entries", "get_task_children",
+  "get_task_full", "search_tasks", "get_task_time_entries", "get_task_children", "get_task_checklist",
 ];
 
-const ADDITIVE_WRITE_TOOLS = ["create_task", "add_comment", "create_contact", "upload_file_from_url", "add_time_entry", "log_workday"];
-const IDEMPOTENT_UPDATE_TOOLS = ["update_task", "update_contact"];
+const ADDITIVE_WRITE_TOOLS = ["create_task", "add_comment", "create_contact", "upload_file_from_url", "add_time_entry", "log_workday", "add_checklist_item"];
+const IDEMPOTENT_UPDATE_TOOLS = ["update_task", "update_contact", "set_checklist_item_done"];
 
 type ToolInfo = {
   name: string;
@@ -31,7 +31,7 @@ describe("createPlanfixServer (tools/list over an in-memory transport)", () => {
     tools = (await client.listTools()).tools as unknown as ToolInfo[];
   });
 
-  it("exposes exactly the 26 expected tools", () => {
+  it("exposes exactly the 29 expected tools", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [...READ_ONLY_TOOLS, ...ADDITIVE_WRITE_TOOLS, ...IDEMPOTENT_UPDATE_TOOLS].sort(),

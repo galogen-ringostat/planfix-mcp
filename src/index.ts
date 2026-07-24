@@ -15,6 +15,7 @@ import { listCustomFieldsSchema, handleListCustomFields } from "./tools/customfi
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
 import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday } from "./tools/timeentries.js";
+import { getTaskChecklistSchema, handleGetTaskChecklist, addChecklistItemSchema, handleAddChecklistItem, setChecklistItemDoneSchema, handleSetChecklistItemDone } from "./tools/checklists.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
 
 const VERSION = "1.2.0";
@@ -384,6 +385,46 @@ export function createPlanfixServer(): McpServer {
     async (params) => ({ content: [{ type: "text", text: await handleLogWorkday(params) }] }),
   );
 
+  server.registerTool(
+    "get_task_checklist",
+    {
+      description:
+        "List a task's checklist items: id, text, checked state [x]/[ ], assignees when present. " +
+        "Items come in creation order (the API has no ordering control). " +
+        "Use it before set_checklist_item_done to find the itemId, and instead of asking the operator to paste the checklist. " +
+        "Input example: { taskId: 123 }.",
+      inputSchema: getTaskChecklistSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleGetTaskChecklist(params)),
+  );
+
+  server.registerTool(
+    "add_checklist_item",
+    {
+      description:
+        "Add an item to a task's checklist. The item is appended at the end (creation order only — no mid-list insertion, no nesting: " +
+        "the API accepts no parent on create), and items CANNOT be deleted via the API — only renamed or (un)checked. " +
+        'Input example: { taskId: 123, name: "Review the draft", assigneeId: 403 }.',
+      inputSchema: addChecklistItemSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleAddChecklistItem(params)),
+  );
+
+  server.registerTool(
+    "set_checklist_item_done",
+    {
+      description:
+        "Check or uncheck a task's checklist item. isDone is required and explicit (true = checked, false = unchecked) — there is no toggle, " +
+        "so re-running the same call is safe. Find the itemId with get_task_checklist first. Items cannot be deleted via the API. " +
+        "Input example: { taskId: 123, itemId: 456, isDone: true }.",
+      inputSchema: setChecklistItemDoneSchema.shape,
+      annotations: IDEMPOTENT_UPDATE,
+    },
+    async (params) => text(await handleSetChecklistItemDone(params)),
+  );
+
   skillMyTasks(server);
   skillCreateTask(server);
 
@@ -459,7 +500,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 26 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 29 tools, 2 skills. Stdio.`);
   }
 }
 
