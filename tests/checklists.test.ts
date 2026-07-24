@@ -131,6 +131,49 @@ describe("add_checklist_item", () => {
   });
 });
 
+describe("update_checklist_item_name", () => {
+  it("posts {name} to task/:id/checklist/:itemId and echoes the new name", async () => {
+    mockPost.mockResolvedValue({ result: "success" });
+    const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
+    const result = await handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "[cancelled] Review the draft" });
+    expect(mockPost).toHaveBeenCalledWith("task/9/checklist/456", { name: "[cancelled] Review the draft" });
+    expect(result).toContain("✓ Checklist item 456 on task 9 renamed to: [cancelled] Review the draft");
+    expect(result).not.toMatch(CYRILLIC_BAN_SCOPE);
+  });
+
+  it("rejects an empty name via Zod", async () => {
+    const { updateChecklistItemNameSchema } = await import("../src/tools/checklists.js");
+    expect(updateChecklistItemNameSchema.safeParse({ taskId: 9, itemId: 456, name: "" }).success).toBe(false);
+    expect(updateChecklistItemNameSchema.safeParse({ taskId: 9, itemId: 456 }).success).toBe(false);
+  });
+
+  it("surfaces per-field failures instead of claiming success", async () => {
+    mockPost.mockResolvedValue({ result: "success", failures: [{ field: "name", error: "too long" }] });
+    const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
+    const result = await handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" });
+    expect(result).toContain("reported failures");
+    expect(result).toContain("too long");
+    expect(result).not.toContain("✓");
+  });
+
+  it("safe mode ON: wrong-project refusal before the POST; fail-closed before any HTTP", async () => {
+    vi.stubEnv("PLANFIX_SAFE_MODE", "1");
+    vi.stubEnv("PLANFIX_TEST_PROJECT_ID", String(TEST_PROJECT));
+    mockGet.mockResolvedValue({ task: { id: 9, project: { id: 111 } } });
+    const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
+    await expect(handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" }))
+      .rejects.toThrow(/update_checklist_item_name refused.*task 9.*111.*572465/s);
+    expect(mockPost).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    vi.stubEnv("PLANFIX_TEST_PROJECT_ID", "");
+    await expect(handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" }))
+      .rejects.toThrow(/PLANFIX_TEST_PROJECT_ID is unset/);
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+});
+
 describe("set_checklist_item_done", () => {
   it("checks an item: posts {isDone: true} to task/:id/checklist/:itemId", async () => {
     mockPost.mockResolvedValue({ result: "success" });

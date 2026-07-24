@@ -225,7 +225,7 @@ describe("refusal messages never instruct the agent to disable the guard", () =>
     const { handleCreateContact, handleUpdateContact } = await import("../src/tools/contacts.js");
     const { handleUploadFileFromUrl } = await import("../src/tools/files.js");
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
-    const { handleAddChecklistItem, handleSetChecklistItemDone } = await import("../src/tools/checklists.js");
+    const { handleAddChecklistItem, handleSetChecklistItemDone, handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
 
     const timeEntry = { taskId: 10, date: "2026-07-24", timeFrom: "10:00", timeTo: "10:30", type: "Task" as const, comment: "x", userId: 403 };
 
@@ -242,6 +242,8 @@ describe("refusal messages never instruct the agent to disable the guard", () =>
       () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleAddTimeEntry(timeEntry); },
       () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleAddChecklistItem({ taskId: 10, name: "x" }); },
       () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleSetChecklistItemDone({ taskId: 10, itemId: 5, isDone: true }); },
+      () => { enableSafeMode(undefined); return handleUpdateChecklistItemName({ taskId: 10, itemId: 5, name: "x" }); },
+      () => { enableSafeMode(String(TEST_PROJECT)); mockTaskInProject(OTHER_PROJECT); return handleUpdateChecklistItemName({ taskId: 10, itemId: 5, name: "x" }); },
       // unscoped mutations
       () => { enableSafeMode(String(TEST_PROJECT)); return handleCreateContact({ name: "x" }); },
       () => { enableSafeMode(String(TEST_PROJECT)); return handleUpdateContact({ contactId: 5, name: "x" }); },

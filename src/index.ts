@@ -15,7 +15,7 @@ import { listCustomFieldsSchema, handleListCustomFields } from "./tools/customfi
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
 import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday } from "./tools/timeentries.js";
-import { getTaskChecklistSchema, handleGetTaskChecklist, addChecklistItemSchema, handleAddChecklistItem, setChecklistItemDoneSchema, handleSetChecklistItemDone } from "./tools/checklists.js";
+import { getTaskChecklistSchema, handleGetTaskChecklist, addChecklistItemSchema, handleAddChecklistItem, setChecklistItemDoneSchema, handleSetChecklistItemDone, updateChecklistItemNameSchema, handleUpdateChecklistItemName } from "./tools/checklists.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
 
 const VERSION = "1.2.0";
@@ -425,6 +425,20 @@ export function createPlanfixServer(): McpServer {
     async (params) => text(await handleSetChecklistItemDone(params)),
   );
 
+  server.registerTool(
+    "update_checklist_item_name",
+    {
+      description:
+        "Rename a task's checklist item (replaces the item text; checked state untouched — use set_checklist_item_done for that). " +
+        "Because the API cannot delete checklist items, the standing cancellation workaround is: rename with a \"[cancelled]\" prefix + un-check. " +
+        "Find the itemId with get_task_checklist first. " +
+        'Input example: { taskId: 123, itemId: 456, name: "[cancelled] Review the draft" }.',
+      inputSchema: updateChecklistItemNameSchema.shape,
+      annotations: IDEMPOTENT_UPDATE,
+    },
+    async (params) => text(await handleUpdateChecklistItemName(params)),
+  );
+
   skillMyTasks(server);
   skillCreateTask(server);
 
@@ -500,7 +514,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 29 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 30 tools, 2 skills. Stdio.`);
   }
 }
 

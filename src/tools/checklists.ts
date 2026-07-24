@@ -50,6 +50,22 @@ export async function handleAddChecklistItem(params: z.infer<typeof addChecklist
   return `✓ Checklist item created: id ${id} on task ${params.taskId}.`;
 }
 
+export const updateChecklistItemNameSchema = z.object({
+  taskId: z.number().int().positive().describe("Task ID"),
+  itemId: z.number().int().positive().describe("Checklist item ID (find it with get_task_checklist)"),
+  name: z.string().min(1).describe("New item text (replaces the previous text)"),
+});
+
+export async function handleUpdateChecklistItemName(params: z.infer<typeof updateChecklistItemNameSchema>): Promise<string> {
+  await assertTaskInTestProject("update_checklist_item_name", params.taskId);
+  const result = await planfixPost(`task/${params.taskId}/checklist/${params.itemId}`, { name: params.name });
+  const failures = (result as { failures?: Array<{ field?: string; error?: string }> })?.failures;
+  if (Array.isArray(failures) && failures.length > 0) {
+    return `Checklist item ${params.itemId} rename reported failures:\n${jsonFallback(failures)}`;
+  }
+  return `✓ Checklist item ${params.itemId} on task ${params.taskId} renamed to: ${params.name}`;
+}
+
 export const setChecklistItemDoneSchema = z.object({
   taskId: z.number().int().positive().describe("Task ID"),
   itemId: z.number().int().positive().describe("Checklist item ID (find it with get_task_checklist)"),
