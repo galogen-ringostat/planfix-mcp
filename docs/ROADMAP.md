@@ -26,7 +26,7 @@ Development loop: friction observed in a live session → item recorded here →
 
 ## P4 — log_workday (approved next, 2026-07-24)
 
-7. **`log_workday`** — composite day-level time logging on top of `add_time_entry`. **Implemented 2026-07-24** (`src/tools/timeentries.ts`; shared `writeTimeEntry()` core with `add_time_entry`), awaiting Layer 3 review (real day in MCP-Test incl. a lunch-spanning interval).
+7. **`log_workday`** — composite day-level time logging on top of `add_time_entry`. **Implemented 2026-07-24** (`src/tools/timeentries.ts`; shared `writeTimeEntry()` core with `add_time_entry`), **Layer 3 verified 2026-07-24**: real day in MCP-Test — validate_only plan matched the real run exactly; lunch-spanning 12:30-16:45 auto-split to 12:30-14:00 + 15:00-16:45 (keys 127827/127828, one commentId 47856609); second task chained separately (key 127829); overlap probe refused with zero writes.
    Takes a whole working day (list of per-task intervals) and **deterministically enforces the operator's logging conventions before writing anything**: intervals must not overlap across tasks; no interval may cross the 14:00–15:00 lunch break (an interval spanning it is split into two entries); entries for the same task+period chain onto one comment via `commentId`. Rationale: these rules currently live only as instructions to the consuming agent (operator's vault, planfix page § Working conventions) — deterministic code beats discipline. Approved by the operator 2026-07-24 as the next slice; detailed brief to follow from the reviewing session.
 
 ## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
