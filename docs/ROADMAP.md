@@ -45,6 +45,7 @@ Development loop: friction observed in a live session → item recorded here →
 ## P7 — update_checklist_item_name (approved 2026-07-24)
 
 10. **`update_checklist_item_name`** — rename a checklist item. Friction: operator asked for it directly 2026-07-24 (rewriting items is part of maintaining checklists; deletion is impossible — the API answers 405, verified live — so rename + un-check is also the "cancel this item" workaround). The update endpoint accepts `name` (rename round-trip verified live on MCP-Test item 572470 by the reviewing session).
+   **Implemented 2026-07-24** (`src/tools/checklists.ts`; 30 tools total; description documents the "[cancelled]" prefix + un-check workaround), awaiting Layer 3 rename round-trip.
 
 ## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
 
