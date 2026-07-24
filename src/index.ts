@@ -354,13 +354,15 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Log a whole working day of time entries in one validated call (composite over add_time_entry). " +
-        "The day is validated BEFORE anything is written: intervals must be well-formed and non-overlapping across the whole day (regardless of task), " +
-        "and no entry may cross the 14:00-15:00 lunch break — an interval spanning the break is auto-split (12:30-16:45 becomes 12:30-14:00 + 15:00-16:45), " +
-        "while an interval inside the break is rejected. Any violation refuses the entire day; nothing is partially written. " +
+        "The day is validated BEFORE anything is written: intervals must be well-formed and non-overlapping across the whole day (regardless of task). " +
+        "The REQUIRED exclusions array (no default) lists the day's no-work windows (lunch, meetings, breaks): every logged interval is cut around every window, " +
+        "splitting it into segments marked with the window's label; an interval left with nothing to log is rejected; pass [] to log straight through. " +
+        "Any violation refuses the entire day; nothing is partially written. " +
         "Writes one comment per task per call: the task's first entry opens the comment, the rest chain onto it via commentId. " +
-        "Set validate_only: true to preview the resolved plan (post-split intervals, per-task and day totals) with zero writes — RECOMMENDED before the real run. " +
+        "Set validate_only: true to preview the resolved plan (post-split segments, applied windows, per-task and day totals) with zero writes — RECOMMENDED before the real run. " +
         "If a write fails mid-run the tool stops, reports exactly what was written (entries cannot be rolled back) and what was not, and never retries. " +
-        'Input example: { date: "2026-07-24", userId: 403, entries: [{ taskId: 123, timeFrom: "09:00", timeTo: "11:00", type: "Task", comment: "feature work" }], validate_only: true }.',
+        'Input example: { date: "2026-07-24", userId: 403, entries: [{ taskId: 123, timeFrom: "09:00", timeTo: "18:00", type: "Task", comment: "feature work" }], ' +
+        'exclusions: [{ timeFrom: "13:00", timeTo: "13:45", label: "lunch" }], validate_only: true }.',
       inputSchema: logWorkdaySchema.shape,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },

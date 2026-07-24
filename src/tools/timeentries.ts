@@ -92,9 +92,9 @@ export async function handleAddTimeEntry(params: z.infer<typeof addTimeEntrySche
 }
 
 // ── log_workday — validated day-level composite (ROADMAP P4) ──────────────────
-
-const LUNCH_FROM = 14 * 60; // 14:00
-const LUNCH_TO = 15 * 60;   // 15:00
+// No org- or person-specific time convention is hardcoded or defaulted here:
+// no-work windows (lunch, meetings, breaks) are cut out ONLY via the required
+// `exclusions` input. Callers' conventions live on the caller's side.
 
 const workdayEntrySchema = z.object({
   taskId: z.number().int().positive().describe("Task ID"),
@@ -104,12 +104,24 @@ const workdayEntrySchema = z.object({
   comment: z.string().min(1).describe("What the time was spent on"),
 });
 
+const exclusionSchema = z.object({
+  timeFrom: z.string().regex(HHMM, "exclusion timeFrom must be a 24-hour time in HH:MM format, e.g. 13:00").describe("Window start (HH:MM)"),
+  timeTo: z.string().regex(HHMM, "exclusion timeTo must be a 24-hour time in HH:MM format, e.g. 13:45").describe("Window end (HH:MM)"),
+  label: z.string().min(1).optional().describe('Short reason, e.g. "lunch" or "all-hands"'),
+});
+
+const EXCLUSIONS_REQUIRED_MSG =
+  "exclusions is required and has deliberately no default: pass the day's no-work windows to cut out of every logged interval " +
+  '(e.g. [{ timeFrom: "13:00", timeTo: "13:45", label: "lunch" }]), or [] to log straight through with no cut-outs.';
+
 export const logWorkdaySchema = z.object({
   date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-24")
     .describe("The day being logged (ISO, YYYY-MM-DD)"),
   userId: z.number().int().positive().describe("ID of the employee whose time is logged. Find it with the list_users tool"),
   entries: z.array(workdayEntrySchema).min(1).describe("All intervals of the day, any task mix"),
+  exclusions: z.array(exclusionSchema, { required_error: EXCLUSIONS_REQUIRED_MSG })
+    .describe("REQUIRED, no default: no-work windows (lunch, meetings, breaks) cut out of every logged interval. [] = no cut-outs"),
   validate_only: z.boolean().optional()
     .describe("true: validate and return the resolved write plan without writing anything (recommended first pass)"),
 });
@@ -123,9 +135,12 @@ type Segment = {
   to: number;
   type: (typeof TIME_ENTRY_TYPES)[number];
   comment: string;
-  sourceIndex: number; // 1-based index of the input entry
-  split: boolean;
+  sourceIndex: number;    // 1-based index of the input entry
+  splitBy: string[];      // labels of the exclusion windows that cut this segment's edges
 };
+
+/** Normalized (merged) exclusion window. */
+type Window = { from: number; to: number; label: string };
 
 const toMin = (hhmm: string): number => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -138,13 +153,46 @@ const fmtDur = (min: number): string => {
   const m = min % 60;
   return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 };
-const segLabel = (s: Segment): string => `${toHHMM(s.from)}-${toHHMM(s.to)}${s.split ? " (auto-split)" : ""}`;
+const segLabel = (s: Segment): string =>
+  `${toHHMM(s.from)}-${toHHMM(s.to)}${s.splitBy.length ? ` (auto-split: ${s.splitBy.join(", ")})` : ""}`;
+const windowLabel = (w: Window): string => `${toHHMM(w.from)}-${toHHMM(w.to)} (${w.label})`;
+
+/** Validate + sort + merge overlapping/adjacent exclusion windows. */
+function normalizeExclusions(exclusions: Workday["exclusions"]): { windows: Window[]; errors: string[] } {
+  const errors: string[] = [];
+  const raw: Window[] = [];
+  exclusions.forEach((x, i) => {
+    const from = toMin(x.timeFrom);
+    const to = toMin(x.timeTo);
+    if (from >= to) {
+      errors.push(`exclusion ${i + 1} (${x.timeFrom}-${x.timeTo}): timeFrom must be earlier than timeTo.`);
+      return;
+    }
+    raw.push({ from, to, label: x.label ?? `${x.timeFrom}-${x.timeTo}` });
+  });
+  raw.sort((a, b) => a.from - b.from || a.to - b.to);
+  const windows: Window[] = [];
+  for (const w of raw) {
+    const last = windows[windows.length - 1];
+    if (last && w.from <= last.to) {
+      // overlapping or adjacent — merge, combining labels
+      last.to = Math.max(last.to, w.to);
+      if (!last.label.split(" + ").includes(w.label)) last.label += ` + ${w.label}`;
+    } else {
+      windows.push({ ...w });
+    }
+  }
+  return { windows, errors };
+}
 
 /**
- * Pure validation + lunch split. Returns either the full post-split segment
- * list or the complete list of violations — never a partial mix.
+ * Pure validation + exclusion-window splitting. Every logged interval is cut
+ * around every window (one interval may become several segments; partial
+ * window overlap cuts too; zero-length remainders are dropped). Returns either
+ * the full post-split segment list or the complete list of violations — never
+ * a partial mix.
  */
-function planWorkday(entries: Workday["entries"]): { segments: Segment[]; errors: string[] } {
+function planWorkday(entries: Workday["entries"], windows: Window[]): { segments: Segment[]; errors: string[] } {
   const errors: string[] = [];
   const segments: Segment[] = [];
 
@@ -159,20 +207,35 @@ function planWorkday(entries: Workday["entries"]): { segments: Segment[]; errors
       return;
     }
     const base = { taskId: e.taskId, type: e.type, comment: e.comment, sourceIndex: idx };
-    // Lunch rule: no written interval may cross 14:00-15:00.
-    if (to <= LUNCH_FROM || from >= LUNCH_TO) {
-      segments.push({ ...base, from, to, split: false }); // entirely outside lunch (14:00 end / 15:00 start are legal)
-    } else if (from < LUNCH_FROM && to > LUNCH_TO) {
-      // Spans the whole break — auto-split around it.
-      segments.push({ ...base, from, to: LUNCH_FROM, split: true });
-      segments.push({ ...base, from: LUNCH_TO, to, split: true });
-    } else if (from >= LUNCH_FROM && to <= LUNCH_TO) {
-      errors.push(`${label}: lies entirely inside the 14:00-15:00 lunch break — move it outside lunch.`);
-    } else {
-      // Partially inside lunch: auto-splitting would silently drop the in-lunch
-      // part, so this is a validation error rather than a silent truncation.
-      errors.push(`${label}: partially overlaps the 14:00-15:00 lunch break — end it by 14:00 or start it at 15:00 (or span the whole break to get auto-split).`);
+    const hits = windows.filter((w) => w.from < to && w.to > from);
+    if (hits.length === 0) {
+      segments.push({ ...base, from, to, splitBy: [] });
+      return;
     }
+    // Cut the interval around every intersecting window; a segment is marked
+    // with the label of each window that produced one of its edges.
+    const produced: Segment[] = [];
+    let cursor = from;
+    let cursorCutBy: string | undefined; // window whose end moved the cursor
+    for (const w of hits) {
+      const segTo = Math.min(w.from, to);
+      if (cursor < segTo) {
+        const splitBy = [cursorCutBy, w.label].filter((s): s is string => Boolean(s));
+        produced.push({ ...base, from: cursor, to: segTo, splitBy });
+      }
+      cursor = Math.max(cursor, w.to);
+      cursorCutBy = w.label;
+    }
+    if (cursor < to) {
+      produced.push({ ...base, from: cursor, to, splitBy: [cursorCutBy!] });
+    }
+    if (produced.length === 0) {
+      errors.push(
+        `${label}: lies entirely inside exclusion window(s) ${hits.map(windowLabel).join(", ")} — nothing remains to log.`,
+      );
+      return;
+    }
+    segments.push(...produced);
   });
 
   // Overlap check on the POST-SPLIT set (splits are subsets of their inputs, so
@@ -183,7 +246,7 @@ function planWorkday(entries: Workday["entries"]): { segments: Segment[]; errors
     const cur = sorted[i];
     if (prev.to > cur.from) {
       errors.push(
-        `entries ${prev.sourceIndex} and ${cur.sourceIndex} overlap after lunch-splitting: ` +
+        `entries ${prev.sourceIndex} and ${cur.sourceIndex} overlap after exclusion-splitting: ` +
         `${segLabel(prev)} vs ${segLabel(cur)} — intervals of one day must not overlap, regardless of task.`,
       );
     }
@@ -204,9 +267,13 @@ function groupByTask(segments: Segment[]): Map<number, Segment[]> {
 
 const total = (segs: Segment[]): number => segs.reduce((acc, s) => acc + (s.to - s.from), 0);
 
-function renderPlan(day: Workday, byTask: Map<number, Segment[]>): string {
+const exclusionsLine = (windows: Window[]): string =>
+  windows.length ? `Exclusions applied: ${windows.map(windowLabel).join(", ")}.` : "Exclusions: none.";
+
+function renderPlan(day: Workday, byTask: Map<number, Segment[]>, windows: Window[]): string {
   const lines: string[] = [
     `Workday plan for ${day.date} (user ${day.userId}) — validation passed, NOTHING written (validate_only).`,
+    exclusionsLine(windows),
   ];
   for (const [taskId, segs] of byTask) {
     lines.push(`Task ${taskId} — ${segs.length} entr${segs.length === 1 ? "y" : "ies"}, ${fmtDur(total(segs))} (one comment, chained):`);
@@ -219,16 +286,19 @@ function renderPlan(day: Workday, byTask: Map<number, Segment[]>): string {
 }
 
 export async function handleLogWorkday(params: Workday): Promise<string> {
-  const { segments, errors } = planWorkday(params.entries);
-  if (errors.length > 0) {
+  const refuse = (errors: string[]): never => {
     throw new Error(
       `log_workday refused — the day failed validation; NOTHING was written. Violations:\n` +
       errors.map((e) => `- ${e}`).join("\n"),
     );
-  }
+  };
+  const { windows, errors: windowErrors } = normalizeExclusions(params.exclusions);
+  if (windowErrors.length > 0) refuse(windowErrors);
+  const { segments, errors } = planWorkday(params.entries, windows);
+  if (errors.length > 0) refuse(errors);
   const byTask = groupByTask(segments);
 
-  if (params.validate_only) return renderPlan(params, byTask);
+  if (params.validate_only) return renderPlan(params, byTask, windows);
 
   // Safe mode: verify EVERY task upfront so a mid-list refusal cannot leave a
   // partially written day. (writeTimeEntry re-guards per write; redundant GETs
@@ -277,7 +347,10 @@ export async function handleLogWorkday(params: Workday): Promise<string> {
     }
   }
 
-  const lines: string[] = [`✓ Workday ${params.date} logged for user ${params.userId}.`];
+  const lines: string[] = [
+    `✓ Workday ${params.date} logged for user ${params.userId}.`,
+    exclusionsLine(windows),
+  ];
   for (const [taskId, segs] of byTask) {
     const cid = taskComment.get(taskId);
     lines.push(`Task ${taskId} — ${segs.length} entr${segs.length === 1 ? "y" : "ies"}, ${fmtDur(total(segs))}, commentId ${cid}:`);
