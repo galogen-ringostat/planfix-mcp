@@ -39,6 +39,7 @@ Development loop: friction observed in a live session → item recorded here →
 ## P6 — checklist re-verification spike (approved 2026-07-24)
 
 9. **Checklist spike** — re-verify the "checklists are not exposed" verdict (2026-07-20) against the `/task/{id}/checklist*` endpoints discovered in the current swagger during P5. Friction: checklists are the single biggest manual gap — the operator pastes them by hand into every task-context conversation. Spike first, tools only after design review (P2 precedent).
+   **Spike done 2026-07-24 — verdict: FULLY EXPOSED; the 2026-07-20 verdict is obsolete.** List/get/create/update (incl. `isDone` toggle) all work: reads verified on 11 production tasks (401356, 425626, all Ф0–Ф8 children), write round-trip verified on MCP-Test task 572468 (item 572469 created and checked). Likely root cause of the old verdict: tool-surface confusion (the upstream npx server had no checklist tool; REST was never probed directly) — same misdiagnosis shape as P2. Full evidence, schemas, and the proposed tool design (`get_task_checklist`, `add_checklist_item`, `set_checklist_item_done` with safe-mode wiring): `docs/spikes/checklists.md`. Implementation awaits design review.
 
 ## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
 
@@ -51,6 +52,6 @@ Source: 2026-07-24 benchmark against peer PM-tool MCP servers (Atlassian Rovo MC
 
 ## Explicitly out of scope
 
-- **Checklists** — not exposed by the Planfix REST API at all (verified empirically 2026-07 and against API docs). No MCP-side work can fix this; revisit only if Planfix ships the endpoint.
+- ~~**Checklists** — not exposed by the Planfix REST API at all (verified empirically 2026-07 and against API docs).~~ **Falsified 2026-07-24 by the P6 spike** (`docs/spikes/checklists.md`): the `/task/{id}/checklist*` endpoints work fully, reads and writes. Checklists moved to P6 above.
 - **Endpoint-coverage parity** with the REST API — coverage is not a goal; friction is.
 - **Project creation** — API does not support it; projects are created in the UI.
