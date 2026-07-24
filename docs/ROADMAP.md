@@ -42,6 +42,10 @@ Development loop: friction observed in a live session → item recorded here →
    **Spike done 2026-07-24 — verdict: FULLY EXPOSED; the 2026-07-20 verdict is obsolete.** List/get/create/update (incl. `isDone` toggle) all work: reads verified on 11 production tasks (401356, 425626, all Ф0–Ф8 children), write round-trip verified on MCP-Test task 572468 (item 572469 created and checked). Likely root cause of the old verdict: tool-surface confusion (the upstream npx server had no checklist tool; REST was never probed directly) — same misdiagnosis shape as P2. Full evidence, schemas, and the proposed tool design (`get_task_checklist`, `add_checklist_item`, `set_checklist_item_done` with safe-mode wiring): `docs/spikes/checklists.md`.
    **Implemented 2026-07-24** (`src/tools/checklists.ts`, design approved as proposed; 29 tools total), **Layer 3 verified 2026-07-24**: item 572470 created with assigneeId 403 (assignee round-trips — spike open question closed), checked, un-checked, listed with correct [x]/[ ] states on probe task 572468. failures-array branch: a bogus-field probe returned HTTP 400 fail-envelope (handled by client.ts), not 200-with-failures — the defensive branch stays live-unexercised.
 
+## P7 — update_checklist_item_name (approved 2026-07-24)
+
+10. **`update_checklist_item_name`** — rename a checklist item. Friction: operator asked for it directly 2026-07-24 (rewriting items is part of maintaining checklists; deletion is impossible — the API answers 405, verified live — so rename + un-check is also the "cancel this item" workaround). The update endpoint accepts `name` (rename round-trip verified live on MCP-Test item 572470 by the reviewing session).
+
 ## Researched backlog (NOT friction-validated — promote to a P-item only when real friction is observed)
 
 Source: 2026-07-24 benchmark against peer PM-tool MCP servers (Atlassian Rovo MCP for Jira — 16 tools incl. JQL search, transitions, worklogs, linking, no deletes; ClickUp/Quire community servers). The fork already matches the peer baseline; items below are candidates, not commitments, per the guiding rule.
