@@ -4,8 +4,8 @@ import { formatTaskList, formatSingleTask, formatCreated, formatUpdated, formatT
 import { postListPage } from "../paging.js";
 import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
 
-// Без явного `fields` Planfix возвращает почти пустые (id-only) объекты,
-// поэтому всегда запрашиваем осмысленный набор полей.
+// Without an explicit `fields` Planfix returns near-empty (id-only) objects,
+// so a meaningful field set is always requested.
 const TASK_FIELDS = "id,name,description,status,priority,assignees,project,startDateTime,endDateTime";
 
 // response_format: "CONCISE" — identifier-grade output for flows that only
@@ -71,12 +71,12 @@ export async function handleCreateTask(params: z.infer<typeof createTaskSchema>)
   const body: Record<string, unknown> = { name: params.name };
   if (params.description) body.description = params.description;
   if (params.projectId) body.project = { id: params.projectId };
-  // Planfix ждёт PeopleRequest: { users: [{ id: "user:<N>" }] }, id — строка с префиксом.
+  // Planfix expects PeopleRequest: { users: [{ id: "user:<N>" }] } — the id is a prefixed string.
   if (params.assigneeId) body.assignees = { users: [{ id: `user:${params.assigneeId}` }] };
   if (params.priority) body.priority = params.priority;
 
   const result = await planfixPost("task/", body);
-  return formatCreated("Задача", result);
+  return formatCreated("Task", result);
 }
 
 export const updateTaskSchema = z.object({
@@ -95,10 +95,10 @@ export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>)
   if (params.status) body.status = { id: params.status };
   if (params.assigneeId) body.assignees = { users: [{ id: `user:${params.assigneeId}` }] };
 
-  // Planfix возвращает пустое тело (200 — применено, 202 — поставлено в очередь);
-  // подтверждение формируем из taskId.
+  // Planfix responds with an empty body (200 — applied, 202 — queued);
+  // the acknowledgement is built from taskId.
   await planfixPost(`task/${params.taskId}`, body);
-  return formatUpdated("Задача", params.taskId);
+  return formatUpdated("Task", params.taskId);
 }
 
 // ── get_task_full — task + comments in one call (read-only) ──────────────────

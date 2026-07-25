@@ -56,7 +56,7 @@ export async function handleCreateContact(params: z.infer<typeof createContactSc
   if (params.isCompany !== undefined) body.isCompany = params.isCompany;
 
   const result = await planfixPost("contact/", body);
-  return formatCreated("Контакт", result);
+  return formatCreated("Contact", result);
 }
 
 export const updateContactSchema = z.object({
@@ -74,5 +74,5 @@ export async function handleUpdateContact(params: z.infer<typeof updateContactSc
   if (params.phone) body.phones = [{ number: params.phone }];
 
   await planfixPost(`contact/${params.contactId}`, body);
-  return formatUpdated("Контакт", params.contactId);
+  return formatUpdated("Contact", params.contactId);
 }

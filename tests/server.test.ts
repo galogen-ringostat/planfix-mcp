@@ -4,11 +4,14 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createPlanfixServer } from "../src/index.js";
 
 const READ_ONLY_TOOLS = [
-  "get_tasks", "get_task", "get_contacts", "get_contact", "get_projects", "get_project",
+  "get_tasks", "get_task", "get_contacts", "get_contact", "get_projects", "get_project", "search_projects",
   "get_comments", "list_users", "get_user", "list_directories", "list_directory_entries",
   "list_custom_fields", "list_datatags", "get_file",
   "get_task_full", "search_tasks", "get_task_time_entries", "get_task_children", "get_task_checklist",
 ];
+
+// Read-only but NOT idempotent-annotated: the overview shifts as tasks move.
+const READ_ONLY_LIVE_TOOLS = ["get_project_overview"];
 
 const ADDITIVE_WRITE_TOOLS = ["create_task", "add_comment", "create_contact", "upload_file_from_url", "add_time_entry", "log_workday", "add_checklist_item"];
 const IDEMPOTENT_UPDATE_TOOLS = ["update_task", "update_contact", "set_checklist_item_done", "update_checklist_item_name"];
@@ -31,10 +34,10 @@ describe("createPlanfixServer (tools/list over an in-memory transport)", () => {
     tools = (await client.listTools()).tools as unknown as ToolInfo[];
   });
 
-  it("exposes exactly the 30 expected tools", () => {
+  it("exposes exactly the 32 expected tools", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
-      [...READ_ONLY_TOOLS, ...ADDITIVE_WRITE_TOOLS, ...IDEMPOTENT_UPDATE_TOOLS].sort(),
+      [...READ_ONLY_TOOLS, ...READ_ONLY_LIVE_TOOLS, ...ADDITIVE_WRITE_TOOLS, ...IDEMPOTENT_UPDATE_TOOLS].sort(),
     );
   });
 
@@ -42,6 +45,14 @@ describe("createPlanfixServer (tools/list over an in-memory transport)", () => {
     for (const name of READ_ONLY_TOOLS) {
       const t = tools.find((x) => x.name === name)!;
       expect(t.annotations, name).toMatchObject({ readOnlyHint: true, idempotentHint: true });
+    }
+  });
+
+  it("annotates read-only live tools readOnly without an idempotent hint", () => {
+    for (const name of READ_ONLY_LIVE_TOOLS) {
+      const t = tools.find((x) => x.name === name)!;
+      expect(t.annotations?.readOnlyHint, name).toBe(true);
+      expect(t.annotations?.idempotentHint, name).toBeUndefined();
     }
   });
 

@@ -3,7 +3,7 @@ import { planfixGet } from "../client.js";
 import { formatUserList, formatSingleUser } from "../format.js";
 import { postListPage } from "../paging.js";
 
-// Ресурс сотрудников — /user (несмотря на тег "Employee" в спецификации).
+// The employee resource is /user (despite the "Employee" tag in the spec).
 const USER_FIELDS = "id,name,midname,lastname,email,position";
 
 export const listUsersSchema = z.object({

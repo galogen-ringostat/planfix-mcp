@@ -2,7 +2,7 @@ import { z } from "zod";
 import { formatDirectoryList, formatDirectoryEntryList } from "../format.js";
 import { postListPage } from "../paging.js";
 
-// Справочники (directories) Planfix хранят, в т.ч., кастомные наборы статусов задач.
+// Planfix directories store, among other things, the custom task status sets.
 const DIRECTORY_FIELDS = "id,name";
 
 export const listDirectoriesSchema = z.object({

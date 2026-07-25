@@ -30,9 +30,9 @@ export const addCommentSchema = z.object({
 
 export async function handleAddComment(params: z.infer<typeof addCommentSchema>): Promise<string> {
   await assertTaskInTestProject("add_comment", params.taskId);
-  // Путь — МНОЖЕСТВЕННОЕ число: /task/{id}/comments/. Поле текста — `description`.
+  // The path is PLURAL: /task/{id}/comments/. The text field is `description`.
   const result = await planfixPost(`task/${params.taskId}/comments/`, {
     description: params.body,
   });
-  return formatCreated("Комментарий", result);
+  return formatCreated("Comment", result);
 }

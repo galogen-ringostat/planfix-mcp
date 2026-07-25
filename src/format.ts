@@ -1,6 +1,6 @@
-// Человекочитаемое форматирование ответов Planfix.
-// Все рендеры толерантны: если форма ответа неизвестна — отдают сырой JSON,
-// чтобы ничего не потерять и не выдумывать структуру.
+// Human-readable formatting of Planfix responses.
+// Every renderer is tolerant: when the response shape is unknown it falls back
+// to raw JSON, so nothing is lost and no structure is invented.
 
 type Json = Record<string, unknown>;
 
@@ -14,7 +14,7 @@ function val(v: unknown): string | undefined {
   return undefined;
 }
 
-/** Рендер ссылки-объекта `{id, name}` → "Имя (#id)". */
+/** Render a reference object `{id, name}` → "Name (#id)". */
 function ref(v: unknown): string | undefined {
   const o = obj(v);
   if (!o) return val(v);
@@ -24,14 +24,14 @@ function ref(v: unknown): string | undefined {
   return n ?? (id ? `#${id}` : undefined);
 }
 
-/** Дата/время Planfix может быть строкой или объектом `{date,time,datetime}`. */
+/** A Planfix date/time may be a string or a `{date,time,datetime}` object. */
 function dateStr(v: unknown): string | undefined {
   const o = obj(v);
   if (o) return val(o.datetime) ?? val(o.date) ?? undefined;
   return val(v);
 }
 
-/** Имена исполнителей из `assignees:{users:[{id,name}]}` или массива. */
+/** Assignee names from `assignees:{users:[{id,name}]}` or a plain array. */
 function peopleNames(v: unknown): string | undefined {
   const o = obj(v);
   const users = o && Array.isArray(o.users) ? (o.users as unknown[]) : Array.isArray(v) ? (v as unknown[]) : [];
@@ -43,7 +43,7 @@ export function jsonFallback(resp: unknown): string {
   return JSON.stringify(resp, null, 2);
 }
 
-/** Найти массив сущностей в ответе: сначала по предпочтительным ключам, затем первый попавшийся. */
+/** Find the entity array in a response: preferred keys first, then the first array found. */
 export function findArray(resp: unknown, keys: string[]): unknown[] | undefined {
   const o = obj(resp);
   if (!o) return undefined;
@@ -75,7 +75,7 @@ function renderPagedList(
   const items = findArray(resp, keys);
   if (!items) return jsonFallback(resp);
   const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
-  if (shown.length === 0) return `${label}: ничего не найдено. has_more: false`;
+  if (shown.length === 0) return `${label}: nothing found. has_more: false`;
   const body = shown.map((it, i) => `${offset + i + 1}. ${render(obj(it) ?? {}, i)}`).join("\n");
   const footer = hasMore
     ? `has_more: true — next page: ${tool} with offset: ${offset + pageSize}.`
@@ -89,21 +89,21 @@ export function formatTask(t: Json): string {
   return line([
     `#${val(t.id) ?? "?"}`,
     val(t.name),
-    ref(t.status) && `статус: ${ref(t.status)}`,
-    (val(t.priority) ?? ref(t.priority)) && `приоритет: ${val(t.priority) ?? ref(t.priority)}`,
-    peopleNames(t.assignees) && `исполнители: ${peopleNames(t.assignees)}`,
-    ref(t.project) && `проект: ${ref(t.project)}`,
-    dateStr(t.endDateTime) && `дедлайн: ${dateStr(t.endDateTime)}`,
+    ref(t.status) && `status: ${ref(t.status)}`,
+    (val(t.priority) ?? ref(t.priority)) && `priority: ${val(t.priority) ?? ref(t.priority)}`,
+    peopleNames(t.assignees) && `assignees: ${peopleNames(t.assignees)}`,
+    ref(t.project) && `project: ${ref(t.project)}`,
+    dateStr(t.endDateTime) && `deadline: ${dateStr(t.endDateTime)}`,
   ]);
 }
 
 /** Identifier-grade task row for response_format: "CONCISE". */
 function conciseTaskRow(t: Json): string {
-  return line([`#${val(t.id) ?? "?"}`, val(t.name), ref(t.status) && `статус: ${ref(t.status)}`]);
+  return line([`#${val(t.id) ?? "?"}`, val(t.name), ref(t.status) && `status: ${ref(t.status)}`]);
 }
 
 export function formatTaskList(resp: unknown, pageSize: number, offset: number, hasMore: boolean, concise = false): string {
-  return renderPagedList("Задачи", "get_tasks", resp, ["tasks"], (t) => (concise ? conciseTaskRow(t) : formatTask(t)), pageSize, offset, hasMore);
+  return renderPagedList("Tasks", "get_tasks", resp, ["tasks"], (t) => (concise ? conciseTaskRow(t) : formatTask(t)), pageSize, offset, hasMore);
 }
 
 export function formatSingleTask(resp: unknown, concise = false): string {
@@ -113,7 +113,7 @@ export function formatSingleTask(resp: unknown, concise = false): string {
   const desc = val(t.description);
   return [
     formatTask(t),
-    desc ? `\nОписание:\n${desc}` : "",
+    desc ? `\nDescription:\n${desc}` : "",
   ].join("");
 }
 
@@ -132,8 +132,8 @@ export function formatContact(c: Json): string {
     `#${val(c.id) ?? "?"}`,
     val(c.name) ?? line([val(c.lastname), val(c.firstname)]) ?? undefined,
     val(c.email) && `email: ${val(c.email)}`,
-    phones(c.phones) && `тел: ${phones(c.phones)}`,
-    ref(c.company) && `компания: ${ref(c.company)}`,
+    phones(c.phones) && `phone: ${phones(c.phones)}`,
+    ref(c.company) && `company: ${ref(c.company)}`,
   ]);
 }
 
@@ -143,7 +143,7 @@ function conciseContactRow(c: Json): string {
 }
 
 export function formatContactList(resp: unknown, pageSize: number, offset: number, hasMore: boolean, concise = false): string {
-  return renderPagedList("Контакты", "get_contacts", resp, ["contacts"], (c) => (concise ? conciseContactRow(c) : formatContact(c)), pageSize, offset, hasMore);
+  return renderPagedList("Contacts", "get_contacts", resp, ["contacts"], (c) => (concise ? conciseContactRow(c) : formatContact(c)), pageSize, offset, hasMore);
 }
 
 export function formatSingleContact(resp: unknown): string {
@@ -153,19 +153,143 @@ export function formatSingleContact(resp: unknown): string {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
+/**
+ * The three fixed system project statuses. The REST API returns project
+ * `status` as a bare `{id}` — no name, and no endpoint lists project statuses
+ * (docs/spikes/projects.md). Mapping evidence: 2 = Active proven live;
+ * 0 = Draft / 1 = Completed confirmed by the operator against the UI
+ * (2026-07-26, project 7854 displays as Completed in the UI).
+ */
+export const PROJECT_STATUS_LABELS: Record<number, string> = {
+  0: "Draft",
+  1: "Completed",
+  2: "Active",
+};
+
+function projectStatusLabel(v: unknown): string | undefined {
+  const id = Number(val(obj(v)?.id) ?? val(v));
+  if (Number.isFinite(id) && PROJECT_STATUS_LABELS[id] !== undefined) return PROJECT_STATUS_LABELS[id];
+  return ref(v);
+}
+
 export function formatProject(p: Json): string {
-  return line([`#${val(p.id) ?? "?"}`, val(p.name), ref(p.status) && `статус: ${ref(p.status)}`]);
+  return line([
+    `#${val(p.id) ?? "?"}`,
+    val(p.name),
+    projectStatusLabel(p.status) && `status: ${projectStatusLabel(p.status)}`,
+    ref(p.owner) && `owner: ${ref(p.owner)}`,
+    ref(p.group) && `group: ${ref(p.group)}`,
+    ref(p.parent) && `parent: ${ref(p.parent)}`,
+    ref(p.counterparty) && `counterparty: ${ref(p.counterparty)}`,
+    ref(p.template) && `template: ${ref(p.template)}`,
+    dateStr(p.startDate) && `start: ${dateStr(p.startDate)}`,
+    dateStr(p.endDate) && `end: ${dateStr(p.endDate)}`,
+    p.overdue === true ? "OVERDUE" : undefined,
+    p.isDeleted === true ? "DELETED" : undefined,
+  ]);
 }
 
 export function formatProjectList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Проекты", "get_projects", resp, ["projects"], (p) => formatProject(p), pageSize, offset, hasMore);
+  return renderPagedList("Projects", "get_projects", resp, ["projects"], (p) => formatProject(p), pageSize, offset, hasMore);
 }
 
 export function formatSingleProject(resp: unknown): string {
   const p = obj(obj(resp)?.project) ?? obj(resp);
   if (!p) return jsonFallback(resp);
   const desc = val(p.description);
-  return [formatProject(p), desc ? `\nОписание:\n${desc}` : ""].join("");
+  return [formatProject(p), desc ? `\nDescription:\n${desc}` : ""].join("");
+}
+
+/**
+ * Compact project rows with exact pagination metadata for search_projects.
+ * `resp` may hold up to `pageSize + 1` projects (over-fetch, see src/paging.ts).
+ */
+export function formatProjectSearchList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
+  const items = findArray(resp, ["projects"]);
+  if (!items) return jsonFallback(resp);
+  const shown = items.length > pageSize ? items.slice(0, pageSize) : items;
+  if (shown.length === 0) {
+    return "No projects matched the given filters. has_more: false. " +
+      "Try relaxing the filters (e.g. shorten nameContains or drop activeOnly).";
+  }
+  const body = shown.map((it, i) => `${offset + i + 1}. ${formatProject(obj(it) ?? {})}`).join("\n");
+  const footer = hasMore
+    ? `has_more: true — next page: search_projects with the same filters and offset: ${offset + pageSize}.`
+    : "has_more: false";
+  return `Projects (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+}
+
+/** Description cap for the overview card — the full text stays one get_project away. */
+const OVERVIEW_DESCRIPTION_CAP = 500;
+
+/**
+ * Project state card for get_project_overview: project fields with a
+ * human-readable status, task counts by status (scan-capped — counts become
+ * explicit lower bounds when the cap is hit), and a recency signal with a
+ * small list of the most recently updated tasks. All caps are explicit in the
+ * output; nothing truncates silently.
+ */
+export function formatProjectOverview(a: {
+  projectResp: unknown;
+  scanned: number;
+  scanCapped: boolean;
+  activeCount: number;
+  closedCount: number;
+  byStatus: Array<[string, number]>;
+  recentDays: number;
+  recentCount: number;
+  recentCapped: boolean;
+  recentTasks: unknown[];
+  recentLimit: number;
+}): string {
+  const p = obj(obj(a.projectResp)?.project) ?? obj(a.projectResp);
+  const parts: string[] = [];
+
+  if (!p) {
+    parts.push(jsonFallback(a.projectResp));
+  } else {
+    parts.push(formatProject(p));
+    const desc = val(p.description);
+    if (desc) {
+      const cut = desc.length > OVERVIEW_DESCRIPTION_CAP
+        ? `${desc.slice(0, OVERVIEW_DESCRIPTION_CAP)}… [truncated — full text via get_project]`
+        : desc;
+      parts.push(`Description:\n${cut}`);
+    }
+  }
+
+  const n = (count: number) => `${count}${a.scanCapped ? "+" : ""}`;
+  const capNote = a.scanCapped
+    ? " (scan cap reached — counts are lower bounds; use search_tasks with projectId and statusId for exact slices)"
+    : "";
+  parts.push(`Tasks: ${n(a.scanned)} scanned${capNote} — active: ${a.activeCount}, closed: ${a.closedCount}.`);
+  if (a.byStatus.length > 0) {
+    parts.push(`By status: ${a.byStatus.map(([name, count]) => `${name}: ${count}`).join(", ")}`);
+  }
+
+  const recentN = `${a.recentCount}${a.recentCapped ? "+" : ""}`;
+  if (a.recentCount === 0) {
+    parts.push(`Activity: no tasks changed or commented in the last ${a.recentDays} days — the project looks inactive.`);
+  } else {
+    const rows = a.recentTasks.slice(0, a.recentLimit).map((it, i) => {
+      const t = obj(it) ?? {};
+      return `${i + 1}. ${line([
+        `#${val(t.id) ?? "?"}`,
+        val(t.name),
+        ref(t.status) && `status: ${ref(t.status)}`,
+        dateStr(t.dateOfLastUpdate) && `updated: ${dateStr(t.dateOfLastUpdate)}`,
+      ])}`;
+    });
+    const latest = obj(a.recentTasks[0]);
+    const latestDate = latest ? dateStr(latest.dateOfLastUpdate) : undefined;
+    parts.push(
+      `Activity: ${recentN} tasks changed or commented in the last ${a.recentDays} days` +
+      `${latestDate ? ` (most recent: ${latestDate})` : ""}.`,
+    );
+    parts.push(`Recently updated (${rows.length} of ${recentN}):\n${rows.join("\n")}`);
+  }
+
+  return parts.join("\n\n");
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -175,12 +299,12 @@ export function formatUser(u: Json): string {
     `#${val(u.id) ?? "?"}`,
     val(u.name) ?? line([val(u.lastname), val(u.firstname), val(u.midname)]),
     val(u.email) && `email: ${val(u.email)}`,
-    ref(u.position) && `должность: ${ref(u.position)}`,
+    ref(u.position) && `position: ${ref(u.position)}`,
   ]);
 }
 
 export function formatUserList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Сотрудники", "list_users", resp, ["users"], (u) => formatUser(u), pageSize, offset, hasMore);
+  return renderPagedList("Employees", "list_users", resp, ["users"], (u) => formatUser(u), pageSize, offset, hasMore);
 }
 
 export function formatSingleUser(resp: unknown): string {
@@ -193,14 +317,14 @@ export function formatSingleUser(resp: unknown): string {
 function commentRow(c: Json, concise = false): string {
   return line([
     `#${val(c.id) ?? "?"}`,
-    ref(c.owner) && `автор: ${ref(c.owner)}`,
+    ref(c.owner) && `author: ${ref(c.owner)}`,
     dateStr(c.dateTime) && dateStr(c.dateTime),
     concise ? undefined : val(c.description),
   ]);
 }
 
 export function formatCommentList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Комментарии", "get_comments", resp, ["comments"], (c) => commentRow(c), pageSize, offset, hasMore);
+  return renderPagedList("Comments", "get_comments", resp, ["comments"], (c) => commentRow(c), pageSize, offset, hasMore);
 }
 
 // ── Composite: task + comments (get_task_full) ────────────────────────────────
@@ -220,12 +344,12 @@ export function formatTaskFull(
   if (!items) return `${head}\n\n${jsonFallback(commentsResp)}`;
   const hasMore = opts.hasMore;
   const shown = items.length > opts.limit ? items.slice(0, opts.limit) : items;
-  if (shown.length === 0) return `${head}\n\nКомментарии: нет.\nhas_more: false`;
+  if (shown.length === 0) return `${head}\n\nComments: none.\nhas_more: false`;
   const body = shown.map((it, i) => `${i + 1}. ${commentRow(obj(it) ?? {}, opts.concise)}`).join("\n");
   const footer = hasMore
     ? `has_more: true — fetch the remaining comments with get_comments (taskId: ${opts.taskId}, offset: ${opts.limit}).`
     : "has_more: false";
-  return `${head}\n\nКомментарии (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+  return `${head}\n\nComments (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Task search (search_tasks) ────────────────────────────────────────────────
@@ -234,9 +358,9 @@ function taskSearchRow(t: Json): string {
   return line([
     `#${val(t.id) ?? "?"}`,
     val(t.name),
-    ref(t.status) && `статус: ${ref(t.status)}`,
-    peopleNames(t.assignees) && `исполнители: ${peopleNames(t.assignees)}`,
-    ref(t.project) && `проект: ${ref(t.project)}`,
+    ref(t.status) && `status: ${ref(t.status)}`,
+    peopleNames(t.assignees) && `assignees: ${peopleNames(t.assignees)}`,
+    ref(t.project) && `project: ${ref(t.project)}`,
   ]);
 }
 
@@ -266,7 +390,7 @@ export function formatTaskSearchList(
   const footer = hasMore
     ? `has_more: true — next page: ${tool} with the same filters and offset: ${offset + pageSize}.`
     : "has_more: false";
-  return `Задачи (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+  return `Tasks (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Time entries (get_task_time_entries) ─────────────────────────────────────
@@ -323,7 +447,7 @@ export function formatTimeEntryList(
   const footer = hasMore
     ? `has_more: true — next page: get_task_time_entries with offset: ${offset + pageSize}.`
     : "has_more: false";
-  return `Записи времени (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+  return `Time entries (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Checklists (get_task_checklist) ───────────────────────────────────────────
@@ -345,56 +469,56 @@ export function formatChecklist(resp: unknown, pageSize: number, offset: number,
         `#${val(e.id) ?? "?"}`,
         val(e.name),
         e.isDone === true ? "[x]" : "[ ]",
-        peopleNames(e.assignees) && `исполнители: ${peopleNames(e.assignees)}`,
+        peopleNames(e.assignees) && `assignees: ${peopleNames(e.assignees)}`,
       ])}`;
     })
     .join("\n");
   const footer = hasMore
     ? `has_more: true — next page: get_task_checklist with offset: ${offset + pageSize}.`
     : "has_more: false";
-  return `Чек-лист (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
+  return `Checklist (${shown.length}${hasMore ? "+" : ""}):\n${body}\n${footer}`;
 }
 
 // ── Directories / custom fields / datatags ───────────────────────────────────────
 
 export function formatDirectoryList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Справочники", "list_directories", resp, ["directories"], (d) =>
+  return renderPagedList("Directories", "list_directories", resp, ["directories"], (d) =>
     line([`#${val(d.id) ?? "?"}`, val(d.name)]), pageSize, offset, hasMore);
 }
 
 export function formatDirectoryEntryList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Записи справочника", "list_directory_entries", resp, ["directoryEntries", "entries"], (e) =>
+  return renderPagedList("Directory entries", "list_directory_entries", resp, ["directoryEntries", "entries"], (e) =>
     line([`#${val(e.key) ?? val(e.id) ?? "?"}`, val(e.name)]), pageSize, offset, hasMore);
 }
 
 export function formatCustomFieldList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Кастомные поля", "list_custom_fields", resp, ["customFields", "customfields", "fields"], (f) =>
-    line([`#${val(f.id) ?? "?"}`, val(f.name), ref(f.type) && `тип: ${ref(f.type)}`]), pageSize, offset, hasMore);
+  return renderPagedList("Custom fields", "list_custom_fields", resp, ["customFields", "customfields", "fields"], (f) =>
+    line([`#${val(f.id) ?? "?"}`, val(f.name), ref(f.type) && `type: ${ref(f.type)}`]), pageSize, offset, hasMore);
 }
 
 export function formatDatatagList(resp: unknown, pageSize: number, offset: number, hasMore: boolean): string {
-  return renderPagedList("Дата-теги", "list_datatags", resp, ["dataTags", "datatags"], (d) =>
+  return renderPagedList("Data tags", "list_datatags", resp, ["dataTags", "datatags"], (d) =>
     line([`#${val(d.id) ?? "?"}`, val(d.name)]), pageSize, offset, hasMore);
 }
 
 export function formatFile(resp: unknown): string {
   const f = obj(obj(resp)?.file) ?? obj(resp);
   if (!f) return jsonFallback(resp);
-  return line([`#${val(f.id) ?? "?"}`, val(f.name), val(f.size) && `размер: ${val(f.size)}`]);
+  return line([`#${val(f.id) ?? "?"}`, val(f.name), val(f.size) && `size: ${val(f.size)}`]);
 }
 
 // ── Write acknowledgements ────────────────────────────────────────────────────────
 
-/** Подтверждение создания: ответ Planfix `{result, id}`. */
+/** Creation acknowledgement: Planfix responds `{result, id}`. */
 export function formatCreated(label: string, resp: unknown): string {
   const id = val(obj(resp)?.id);
-  return id ? `✓ ${label} создан, ID: ${id}` : `✓ ${label} создан.\n${jsonFallback(resp)}`;
+  return id ? `✓ ${label} created, ID: ${id}` : `✓ ${label} created.\n${jsonFallback(resp)}`;
 }
 
 /**
- * Подтверждение обновления. Planfix отвечает пустым телом (200/202),
- * поэтому формируем осмысленное сообщение из id, переданного вызывающим.
+ * Update acknowledgement. Planfix responds with an empty body (200/202), so a
+ * meaningful message is built from the id the caller passed in.
  */
 export function formatUpdated(label: string, id: number | string): string {
-  return `✓ ${label} #${id} обновлён.`;
+  return `✓ ${label} #${id} updated.`;
 }

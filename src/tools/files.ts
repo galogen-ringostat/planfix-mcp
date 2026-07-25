@@ -3,8 +3,8 @@ import { planfixPost, planfixGet } from "../client.js";
 import { formatFile, formatCreated } from "../format.js";
 import { refuseUnscopedMutation } from "../safemode.js";
 
-// FileUploadRequest = { name, url } (оба опциональны). Загрузка файла по ссылке —
-// без multipart. Прямую загрузку с диска (POST /file/) тут не реализуем.
+// FileUploadRequest = { name, url } (both optional). Upload by URL only —
+// no multipart; direct disk upload (POST /file/) is deliberately not implemented.
 export const uploadFileFromUrlSchema = z.object({
   url: z.string().describe("Direct URL of the file to upload"),
   name: z.string().optional().describe("File name (derived from the URL when omitted)"),
@@ -17,7 +17,7 @@ export async function handleUploadFileFromUrl(params: z.infer<typeof uploadFileF
   const body: Record<string, unknown> = { url: params.url };
   if (params.name) body.name = params.name;
   const result = await planfixPost("file/from-url/", body);
-  return formatCreated("Файл", result);
+  return formatCreated("File", result);
 }
 
 export const getFileSchema = z.object({

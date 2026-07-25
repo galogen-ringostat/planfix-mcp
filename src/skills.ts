@@ -4,7 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 export function skillMyTasks(server: McpServer): void {
   server.prompt(
     "skill-my-tasks",
-    "Мои задачи на сегодня — показывает список задач с дедлайном сегодня или просроченных.",
+    "My tasks for today — lists tasks that are due today or overdue.",
     async () => ({
       messages: [
         {
@@ -12,16 +12,16 @@ export function skillMyTasks(server: McpServer): void {
           content: {
             type: "text" as const,
             text: [
-              "Используй инструмент get_tasks чтобы получить все задачи.",
-              "Из полученного списка отфильтруй только те задачи, у которых:",
-              "1. endDate равна сегодняшней дате или уже прошла (просроченные)",
-              "2. Задача не в статусе 'Завершена' / 'Закрыта'",
+              "Use the get_tasks tool to fetch the tasks.",
+              "From the resulting list keep only the tasks where:",
+              "1. endDate is today or already past (overdue)",
+              "2. The task is not in a completed/closed status",
               "",
-              "Выведи результат в формате:",
-              "Мои задачи на сегодня:",
-              "- [ID] Название задачи | Проект: ... | Дедлайн: ... | Статус: ...",
+              "Output the result in this format:",
+              "My tasks for today:",
+              "- [ID] Task name | Project: ... | Deadline: ... | Status: ...",
               "",
-              "Если просроченных задач нет, скажи: 'Все задачи в порядке, просроченных нет!'",
+              "If there are no due or overdue tasks, say: 'All clear — nothing due or overdue.'",
             ].join("\n"),
           },
         },
@@ -33,9 +33,9 @@ export function skillMyTasks(server: McpServer): void {
 export function skillCreateTask(server: McpServer): void {
   server.prompt(
     "skill-create-task",
-    "Создай задачу в проекте — помощник для создания задачи с выбором проекта и исполнителя.",
+    "Create a task in a project — an assistant flow for creating a task with project and assignee selection.",
     {
-      description: z.string().describe("Краткое описание задачи, например: 'Подготовить отчёт за март'"),
+      description: z.string().describe("Short task description, e.g.: 'Prepare the March report'"),
     },
     async ({ description }) => ({
       messages: [
@@ -44,16 +44,16 @@ export function skillCreateTask(server: McpServer): void {
           content: {
             type: "text" as const,
             text: [
-              `Пользователь хочет создать задачу: "${description}"`,
+              `The user wants to create a task: "${description}"`,
               "",
-              "Шаги:",
-              "1. Используй get_projects чтобы получить список проектов",
-              "2. Покажи пользователю список проектов и спроси, в какой проект добавить задачу",
-              "3. После выбора проекта, используй create_task с:",
-              `   - name: краткое название из описания`,
-              `   - description: полное описание`,
-              "   - projectId: ID выбранного проекта",
-              "4. Подтверди создание задачи и покажи её ID",
+              "Steps:",
+              "1. Use search_projects (or get_projects) to find candidate projects",
+              "2. Show the user the project list and ask which project the task belongs in",
+              "3. After the project is chosen, call create_task with:",
+              "   - name: a short title derived from the description",
+              "   - description: the full description",
+              "   - projectId: the chosen project's ID",
+              "4. Confirm the task was created and show its ID",
             ].join("\n"),
           },
         },

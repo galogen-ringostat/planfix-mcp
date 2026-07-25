@@ -173,12 +173,23 @@ Rejected/deferred:
 
 ## Open questions
 
-1. Operator eyeball-check of the 0=Draft/1=Completed mapping against the UI (single
-   glance at «Маркетинг Ringostat» = Завершен?). Implementation proceeds on the mapping
-   above either way; the constant is trivial to flip.
-2. Language of the three status labels in rendered output (recommend Russian, see above).
+1. ~~Operator eyeball-check of the 0=Draft/1=Completed mapping against the UI.~~
+   **Closed 2026-07-26 (design review): CONFIRMED** — «Маркетинг Ringostat» (7854)
+   displays as Completed in the UI. Map locked: `{0: Draft, 1: Completed, 2: Active}`.
+2. ~~Language of the three status labels in rendered output.~~ **Closed 2026-07-26 the
+   other way: English** — CLAUDE.md § Working language updated (all server-authored
+   text English-only, including rendered-output labels); the Russian-labels
+   recommendation above is superseded.
 3. Whether `get_project_overview` should also surface `customFieldData` — no observed
    friction; left out.
+
+## Design review outcome (2026-07-26)
+
+APPROVED with changes, all implemented: status map confirmed (above); the overview's
+recency count reports `100+` when its single type-79 page is full (explicit-cap
+convention, same as the 300-task scan cap); English-only output sweep across
+`src/format.ts` / `src/skills.ts` / remaining Russian strings, test-enforced by
+`tests/english-output.test.ts`.
 
 ## Probe-artifact inventory
 

@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 
 import { getTasksSchema, handleGetTasks, getTaskSchema, handleGetTask, createTaskSchema, handleCreateTask, updateTaskSchema, handleUpdateTask, getTaskFullSchema, handleGetTaskFull, searchTasksSchema, handleSearchTasks, getTaskChildrenSchema, handleGetTaskChildren } from "./tools/tasks.js";
 import { getContactsSchema, handleGetContacts, getContactSchema, handleGetContact, createContactSchema, handleCreateContact, updateContactSchema, handleUpdateContact } from "./tools/contacts.js";
-import { getProjectsSchema, handleGetProjects, getProjectSchema, handleGetProject } from "./tools/projects.js";
+import { getProjectsSchema, handleGetProjects, getProjectSchema, handleGetProject, searchProjectsSchema, handleSearchProjects, getProjectOverviewSchema, handleGetProjectOverview } from "./tools/projects.js";
 import { getCommentsSchema, handleGetComments, addCommentSchema, handleAddComment } from "./tools/comments.js";
 import { listUsersSchema, handleListUsers, getUserSchema, handleGetUser } from "./tools/users.js";
 import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchema, handleListDirectoryEntries } from "./tools/directories.js";
@@ -119,8 +119,8 @@ export function createPlanfixServer(): McpServer {
     "get_projects",
     {
       description:
-        "List Planfix projects (id, name, status). " +
-        "Use it to find a projectId for create_task or search_tasks. " +
+        "List Planfix projects (id, name, status) with pagination only. " +
+        "For criteria-driven discovery (name substring, active-only, group, owner) prefer search_projects. " +
         "Input example: {}.",
       inputSchema: getProjectsSchema.shape,
       annotations: READ_ONLY,
@@ -132,12 +132,45 @@ export function createPlanfixServer(): McpServer {
     "get_project",
     {
       description:
-        "Get one project by ID (name, description, status). " +
+        "Get one project by ID: name, description, human-readable status (Draft/Completed/Active), owner, group, parent, dates. " +
+        "Use get_project_overview instead when you also need the project's task counts and activity signal. " +
         "Input example: { projectId: 45 }.",
       inputSchema: getProjectSchema.shape,
       annotations: READ_ONLY,
     },
     async (params) => text(await handleGetProject(params)),
+  );
+
+  server.registerTool(
+    "search_projects",
+    {
+      description:
+        "Search projects by filters (AND-combined): name substring (nameContains, contains semantics), " +
+        "only Active projects (activeOnly: true — excludes Draft and Completed), group (groupId), owner (ownerId). " +
+        "At least one filter is required; to page through all projects unfiltered use get_projects. " +
+        "Prefer search_projects over paging get_projects when picking the project for a new task. " +
+        'Input example: { nameContains: "RevOps", activeOnly: true }.',
+      inputSchema: searchProjectsSchema.shape,
+      annotations: READ_ONLY,
+    },
+    async (params) => text(await handleSearchProjects(params)),
+  );
+
+  server.registerTool(
+    "get_project_overview",
+    {
+      description:
+        "One-call project state card: project fields with human-readable status (Draft/Completed/Active), " +
+        "task counts by status (scanned up to 300 tasks — beyond that counts are reported as explicit lower bounds), " +
+        "and an activity signal: how many tasks changed or were commented in the last recentDays days (default 30) " +
+        "plus the most recently updated tasks (recentLimit, default 10). " +
+        "Use it to judge whether a project is alive before attaching new tasks to it; " +
+        "use get_project for just the card, search_tasks for exact task slices. " +
+        "Input example: { projectId: 45, recentDays: 30 }.",
+      inputSchema: getProjectOverviewSchema.shape,
+      annotations: { readOnlyHint: true },
+    },
+    async (params) => text(await handleGetProjectOverview(params)),
   );
 
   server.registerTool(
@@ -514,7 +547,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 30 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 32 tools, 2 skills. Stdio.`);
   }
 }
 
