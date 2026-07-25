@@ -85,6 +85,24 @@ function renderPagedList(
 
 // ── Tasks ───────────────────────────────────────────────────────────────────
 
+/**
+ * Compact "name: stringValue" segments from a task's customFieldData —
+ * high-signal only: the human-readable stringValue (falling back to a scalar
+ * raw value), never field metadata (enumValues, colors, options). Entries
+ * whose value is a non-scalar object with no stringValue are skipped.
+ */
+function customFieldSegments(t: Json): string[] {
+  const data = Array.isArray(t.customFieldData) ? (t.customFieldData as unknown[]) : [];
+  const segments: string[] = [];
+  for (const item of data) {
+    const e = obj(item);
+    const name = val(obj(e?.field)?.name);
+    const value = val(e?.stringValue) ?? val(e?.value);
+    if (name && value !== undefined) segments.push(`${name}: ${value}`);
+  }
+  return segments;
+}
+
 export function formatTask(t: Json): string {
   return line([
     `#${val(t.id) ?? "?"}`,
@@ -94,6 +112,7 @@ export function formatTask(t: Json): string {
     peopleNames(t.assignees) && `assignees: ${peopleNames(t.assignees)}`,
     ref(t.project) && `project: ${ref(t.project)}`,
     dateStr(t.endDateTime) && `deadline: ${dateStr(t.endDateTime)}`,
+    ...customFieldSegments(t),
   ]);
 }
 
@@ -361,6 +380,7 @@ function taskSearchRow(t: Json): string {
     ref(t.status) && `status: ${ref(t.status)}`,
     peopleNames(t.assignees) && `assignees: ${peopleNames(t.assignees)}`,
     ref(t.project) && `project: ${ref(t.project)}`,
+    ...customFieldSegments(t),
   ]);
 }
 

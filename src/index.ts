@@ -39,7 +39,7 @@ export function createPlanfixServer(): McpServer {
     "get_tasks",
     {
       description:
-        "List Planfix tasks with pagination and raw Planfix filters. " +
+        "List Planfix tasks with pagination and raw Planfix filters (ad-hoc filters take a `field` key for custom-field filter types 101-117). " +
         "Use it to page through tasks when no specific search criteria exist; for criteria-driven discovery prefer search_tasks. " +
         'Set response_format: "CONCISE" for identifier-grade rows (id, name, status) when you only need IDs for a follow-up call. ' +
         'Input example: { pageSize: 50, offset: 0 }.',
@@ -54,6 +54,7 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Get one task by ID (name, description, status, priority, assignees, project, dates). " +
+        "Custom fields render when requested by NUMERIC id in `fields` (the literal \"customFieldData\" is ignored by the API; ids via list_custom_fields). " +
         "Use get_task_full instead when you also need the task's comments. " +
         'Set response_format: "CONCISE" for an identifier-grade line (id, name, status) when you only need to confirm the task for a follow-up call. ' +
         "Input example: { taskId: 123 }.",
@@ -330,6 +331,7 @@ export function createPlanfixServer(): McpServer {
       description:
         "Get a task together with its comments in a single call (equivalent to get_task + get_comments). " +
         "Use it when you need both the task card and its discussion — e.g. syncing a task mirror. " +
+        "Custom fields render when requested by NUMERIC id in `fields` (ids via list_custom_fields). " +
         "Use get_task when comments are not needed, or get_comments with offset to page through older comments. " +
         'Set response_format: "CONCISE" to trim output to identifiers (task id/name/status; comment ids, authors, dates without text). ' +
         "Input example: { taskId: 123, commentsLimit: 30 }.",
@@ -344,10 +346,12 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Search tasks by filters (AND-combined): name substring (nameContains), assignee (assigneeId), " +
-        "status (statusId), project (projectId), changed or commented after a date (updatedSince, ISO YYYY-MM-DD). " +
+        "status (statusId), project (projectId), changed or commented after a date (updatedSince, ISO YYYY-MM-DD), " +
+        "or a List-type custom field value (customField: { fieldId, value } — exact option label). " +
+        "customFieldIds lists extra custom field ids to fetch and render on each row (e.g. estimation vs time spent). " +
         "At least one filter is required; to page through all tasks unfiltered use get_tasks. " +
         "Prefer search_tasks over paging get_tasks when looking for specific tasks. " +
-        'Input example: { nameContains: "report", projectId: 572465, updatedSince: "2026-07-01" }.',
+        'Input example: { customField: { fieldId: 22571, value: "Sprint 10 - 2026" }, assigneeId: 403, customFieldIds: [22453, 22451] }.',
       inputSchema: searchTasksSchema.shape,
       annotations: READ_ONLY,
     },

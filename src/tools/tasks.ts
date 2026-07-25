@@ -14,19 +14,28 @@ const CONCISE_TASK_FIELDS = "id,name,status";
 const responseFormatSchema = z.enum(["CONCISE", "DETAILED"]).optional()
   .describe("DETAILED (default): full fields. CONCISE: identifier-grade rows only (id, name, status); overrides `fields`. Pick CONCISE when you only need IDs for a follow-up call");
 
-// Ad-hoc Planfix filter: { type, operator, value } (combined with AND).
+// Ad-hoc Planfix filter: { type, operator, value, field? } (combined with AND).
+// `field` is required by the API for custom-field filter types (101–117) and
+// was previously missing from this schema — Zod stripped it silently, making
+// custom-field filtering impossible (P9 fix).
 const filterSchema = z.object({
-  type: z.number().describe("Filter type (Planfix numeric code, e.g. 8 — task name, 51 — template)"),
+  type: z.number().describe("Filter type (Planfix numeric code, e.g. 8 — task name, 51 — template, 106 — List custom field)"),
   operator: z.string().describe("Comparison operator, e.g. 'equal', 'gt', 'lt'"),
   value: z.unknown().describe("Filter value"),
+  field: z.number().int().positive().optional()
+    .describe("Custom field ID — required for custom-field filter types (101-117). Find field IDs with list_custom_fields"),
 });
+
+const FIELDS_CUSTOM_HINT =
+  "To include custom fields, append their NUMERIC ids (e.g. \"id,name,22571\") — " +
+  "the literal word \"customFieldData\" is silently ignored by the API. Discover ids with list_custom_fields";
 
 export const getTasksSchema = z.object({
   offset: z.number().optional().describe("Pagination offset (default 0)"),
   pageSize: z.number().optional().describe("Tasks per page (default 100, API max 100)"),
   filterId: z.union([z.string(), z.number()]).optional().describe("ID of a saved task filter (see /task/filters)"),
   filters: z.array(filterSchema).optional().describe("Array of ad-hoc filters for arbitrary filtering"),
-  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS})`),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS}). ${FIELDS_CUSTOM_HINT}`),
   response_format: responseFormatSchema,
 });
 
@@ -44,7 +53,7 @@ export async function handleGetTasks(params: z.infer<typeof getTasksSchema>): Pr
 
 export const getTaskSchema = z.object({
   taskId: z.number().describe("Task ID"),
-  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS})`),
+  fields: z.string().optional().describe(`Comma-separated field list (default: ${TASK_FIELDS}). ${FIELDS_CUSTOM_HINT}`),
   response_format: responseFormatSchema,
 });
 
@@ -110,6 +119,7 @@ export const getTaskFullSchema = z.object({
   taskId: z.number().int().positive().describe("Task ID"),
   commentsLimit: z.number().int().min(1).max(100).optional()
     .describe(`Maximum comments in the response (default ${DEFAULT_COMMENTS_LIMIT}, max 100)`),
+  fields: z.string().optional().describe(`Comma-separated task field list (default: ${TASK_FIELDS}). ${FIELDS_CUSTOM_HINT}`),
   response_format: responseFormatSchema,
 });
 
@@ -119,7 +129,7 @@ export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema
   const limit = params.commentsLimit ?? DEFAULT_COMMENTS_LIMIT;
   const concise = params.response_format === "CONCISE";
   const [taskResp, comments] = await Promise.all([
-    planfixGet(`task/${params.taskId}`, { fields: concise ? CONCISE_TASK_FIELDS : TASK_FIELDS }),
+    planfixGet(`task/${params.taskId}`, { fields: concise ? CONCISE_TASK_FIELDS : params.fields ?? TASK_FIELDS }),
     postListPage(
       `task/${params.taskId}/comments/list`,
       { fields: concise ? CONCISE_COMMENT_FIELDS : COMMENT_FIELDS },
@@ -137,6 +147,14 @@ export async function handleGetTaskFull(params: z.infer<typeof getTaskFullSchema
 //   type 2  — assignee;  value is the prefixed string "user:<id>"
 //   type 10 — status;    value is the numeric status id
 //   type 5  — project;   value is the numeric project id
+//   type 106 — List custom field; requires the extra `field` key (custom
+//             field id); value is the option's string label, exact match
+//             (verified live 2026-07-26: field 22571 value "Sprint 4 - 2026"
+//             matched its tasks; a nonexistent label matched zero).
+//             Custom-field types are 101-117 by field type (106 = List);
+//             search_tasks sugars ONLY the List case — the observed friction
+//             (Sprint/Status/Priority/Complexity) is all List fields; other
+//             types go through get_tasks ad-hoc filters with `field`.
 //   type 79 — date of latest change OR comment; operator "gt",
 //             value { dateType: "otherDate", dateValue: "DD-MM-YYYY" }
 //             Type 79 over type 38 ("latest change" only) is deliberate: the
@@ -160,13 +178,20 @@ export const searchTasksSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "updatedSince must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
     .optional()
     .describe("Only tasks changed or commented after this date (ISO, YYYY-MM-DD)"),
+  customField: z.object({
+    fieldId: z.number().int().positive().describe("Custom field ID. Find it with list_custom_fields"),
+    value: z.string().min(1).describe("The option's exact label, e.g. \"Sprint 10 - 2026\""),
+  }).optional()
+    .describe("Filter by a List-type custom field (exact label match). For other custom field types use get_tasks with an ad-hoc filter"),
+  customFieldIds: z.array(z.number().int().positive()).max(20).optional()
+    .describe("Extra custom field ids to fetch and render on each result row (e.g. estimation/time-spent fields). Find ids with list_custom_fields"),
   offset: z.number().int().min(0).optional().describe("Pagination offset (default 0)"),
   pageSize: z.number().int().min(1).max(100).optional()
     .describe(`Results per page (default ${DEFAULT_SEARCH_PAGE_SIZE}, max 100)`),
 });
 
 export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema>): Promise<string> {
-  const filters: Array<{ type: number; operator: string; value: unknown }> = [];
+  const filters: Array<{ type: number; operator: string; value: unknown; field?: number }> = [];
   if (params.nameContains !== undefined) filters.push({ type: 8, operator: "equal", value: params.nameContains });
   if (params.assigneeId !== undefined) filters.push({ type: 2, operator: "equal", value: `user:${params.assigneeId}` });
   if (params.statusId !== undefined) filters.push({ type: 10, operator: "equal", value: params.statusId });
@@ -175,18 +200,27 @@ export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema
     const [y, m, d] = params.updatedSince.split("-");
     filters.push({ type: 79, operator: "gt", value: { dateType: "otherDate", dateValue: `${d}-${m}-${y}` } });
   }
+  if (params.customField !== undefined) {
+    filters.push({ type: 106, operator: "equal", value: params.customField.value, field: params.customField.fieldId });
+  }
 
   if (filters.length === 0) {
     throw new Error(
-      "search_tasks requires at least one filter: nameContains, assigneeId, statusId, projectId, or updatedSince. " +
+      "search_tasks requires at least one filter: nameContains, assigneeId, statusId, projectId, updatedSince, or customField. " +
       "To page through all tasks without filters, use get_tasks instead.",
     );
   }
 
+  // Custom fields render only when fetched by numeric id: the filtered field
+  // plus any explicitly requested display fields join the fetch set.
+  const cfIds = new Set<number>(params.customFieldIds ?? []);
+  if (params.customField !== undefined) cfIds.add(params.customField.fieldId);
+  const fields = cfIds.size > 0 ? `${SEARCH_FIELDS},${[...cfIds].join(",")}` : SEARCH_FIELDS;
+
   const offset = params.offset ?? 0;
   const pageSize = params.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
   const { resp, hasMore } = await postListPage("task/list", {
-    fields: SEARCH_FIELDS,
+    fields,
     filters,
   }, ["tasks"], offset, pageSize);
   return formatTaskSearchList(resp, pageSize, offset, hasMore);

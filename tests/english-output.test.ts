@@ -86,4 +86,14 @@ describe("English-only server text", () => {
     expect(out).toContain("Задача из Планфикса"); // data passes through untouched
     expect(out).toContain("status: Новая (#1)");  // label English, value is data
   });
+
+  it("customFieldData names and stringValues are DATA — they pass through in any language", async () => {
+    const f = await import("../src/format.js");
+    const out = f.formatTask({ id: 1, name: "T", customFieldData: [
+      { field: { id: 22451, name: "Time spent RevOps" }, value: 4570, stringValue: "76 ч 10 мин" },
+      { field: { id: 9, name: "Оценка" }, value: "высокая", stringValue: "высокая" },
+    ] });
+    expect(out).toContain("Time spent RevOps: 76 ч 10 мин");
+    expect(out).toContain("Оценка: высокая");
+  });
 });
