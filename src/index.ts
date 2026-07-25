@@ -11,7 +11,7 @@ import { getProjectsSchema, handleGetProjects, getProjectSchema, handleGetProjec
 import { getCommentsSchema, handleGetComments, addCommentSchema, handleAddComment } from "./tools/comments.js";
 import { listUsersSchema, handleListUsers, getUserSchema, handleGetUser } from "./tools/users.js";
 import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchema, handleListDirectoryEntries } from "./tools/directories.js";
-import { listCustomFieldsSchema, handleListCustomFields } from "./tools/customfields.js";
+import { listCustomFieldsSchema, handleListCustomFields, setTaskCustomFieldSchema, handleSetTaskCustomField, addEstimationSchema, handleAddEstimation } from "./tools/customfields.js";
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
 import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday } from "./tools/timeentries.js";
@@ -289,6 +289,39 @@ export function createPlanfixServer(): McpServer {
   );
 
   server.registerTool(
+    "set_task_custom_field",
+    {
+      description:
+        "Set a List-type custom field on a task to one of its allowed option labels — with guards the raw API lacks: " +
+        "the value is validated against the field's allowed values BEFORE writing (the API otherwise stores any string verbatim), " +
+        "and the write is verified by read-back (the API reports success even when a field not attached to the task's template stores nothing). " +
+        "List fields only; Data tag summary fields (estimation/time spent) are computed and go through add_estimation/add_time_entry. " +
+        "Find field ids with list_custom_fields. " +
+        'Input example: { taskId: 123, fieldId: 22571, value: "Sprint 10 - 2026" }.',
+      inputSchema: setTaskCustomFieldSchema.shape,
+      annotations: IDEMPOTENT_UPDATE,
+    },
+    async (params) => text(await handleSetTaskCustomField(params)),
+  );
+
+  server.registerTool(
+    "add_estimation",
+    {
+      description:
+        "Add an estimation to a task (data tag entries feeding the task's estimation summary field). APPEND semantics: " +
+        "the hours ADD to the existing estimation sum — the acknowledgement reports the read-back new total so a double-add is immediately visible. " +
+        "The total is written as one or more clock-range entries; the optional workday layout ({ from, to, exclusions }) makes entries look like " +
+        "real working intervals (fill the day, skip exclusions, spill to a new visual day) — purely cosmetic, entries carry no dates. " +
+        "There is NO default day shape: ask the operator for theirs, or omit workday for plain maximal chunks. " +
+        "Set validate_only: true to preview the planned entries with zero writes — RECOMMENDED before the real run. " +
+        'Input example: { taskId: 123, userId: 403, hours: 10.5, workday: { from: "10:00", to: "19:00", exclusions: [{ timeFrom: "14:00", timeTo: "15:00" }] }, validate_only: true }.',
+      inputSchema: addEstimationSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleAddEstimation(params)),
+  );
+
+  server.registerTool(
     "list_datatags",
     {
       description:
@@ -551,7 +584,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 32 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 34 tools, 2 skills. Stdio.`);
   }
 }
 

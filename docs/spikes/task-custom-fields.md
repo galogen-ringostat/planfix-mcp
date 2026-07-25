@@ -112,12 +112,39 @@ Findings:
    bypass enum validation and read-back, reintroducing the silent-failure class this
    spike documented.
 
+## Addendum 2026-07-26 (implementation session): the 24h chunk shape
+
+Probed while implementing the approved `add_estimation` (writes on task 574545 only):
+
+- `{from: 00:00, to: 00:00}` → `201 success`, entry `127902` stores `durationSec: 86400`
+  — but the summary field **ignores it** (22453 unchanged). A THIRD silent-failure
+  variant.
+- `{from: "00:00", to: "24:00"}` → `201 success`, entry `127903`; summary jumped
+  90 → 1530 min (+24h) immediately. **"24:00" as the `to` time is the working 24h
+  chunk shape** (matches the production entry's "00:00 - 24:00" rendering).
+
+`add_estimation` therefore renders a 1440-minute boundary as "24:00" and never emits
+equal from/to times or a bare durationSec.
+
+## Design review outcome (2026-07-26): APPROVED with amendment — IMPLEMENTED
+
+Both tools shipped in `src/tools/customfields.ts` (registered in `src/index.ts`, 34
+tools total): `set_task_custom_field` exactly as proposed; `add_estimation` with the
+amended workday layout semantics (optional `workday {from, to, exclusions}` — fill the
+day, skip exclusions, spill to a new visual day; entries carry no dates; NO default day
+shape in code; plain 00:00-24:00 chunks when omitted), APPEND semantics with the
+read-back new total in the ack, all-or-nothing validation, `validate_only`, and
+log_workday-style partial-failure reporting. Unit tests: `tests/customfields-write.test.ts`
+(incl. the review's 10.5h example verbatim and a no-durationSec-anywhere assertion).
+
 ## Probe-artifact inventory (Layer 3 rule 5 — leave auditable, batch-clean from UI)
 
 - Task `574545` "[MCP-TEST] P9 spike: custom field write probe" in project 572465, left
   with: Sprint = "Sprint 4 - 2026", Complexity Level = "Advanced", Estimation = 1 ч 30 мин.
 - Data tag 61 entries on it: `127900` (empty Time — the durationSec no-op evidence),
-  `127901` (1.5h, comment 47886313); comments 47886309/47886313 hold them.
+  `127901` (1.5h, comment 47886313), `127902` (the 00:00-00:00 non-counting evidence),
+  `127903` (the working 24h chunk); comments 47886309/47886313/47886321/47886323.
+  Task 574545's estimation summary reads "25 ч 30 мин" after the addendum probes.
 - The invalid Sprint value was reverted in-run; 21752/22443 writes left no trace (that
   is the finding).
 
