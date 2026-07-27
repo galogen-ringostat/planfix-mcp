@@ -14,7 +14,7 @@ import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchem
 import { listCustomFieldsSchema, handleListCustomFields, setTaskCustomFieldSchema, handleSetTaskCustomField, addEstimationSchema, handleAddEstimation } from "./tools/customfields.js";
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
 import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
-import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday } from "./tools/timeentries.js";
+import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday, getTimeReportSchema, handleGetTimeReport } from "./tools/timeentries.js";
 import { getTaskChecklistSchema, handleGetTaskChecklist, addChecklistItemSchema, handleAddChecklistItem, setChecklistItemDoneSchema, handleSetChecklistItemDone, updateChecklistItemNameSchema, handleUpdateChecklistItemName } from "./tools/checklists.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
 
@@ -421,6 +421,22 @@ export function createPlanfixServer(): McpServer {
   );
 
   server.registerTool(
+    "get_time_report",
+    {
+      description:
+        "Cross-task time report for a period: per user — total hours, per-day totals, and UNLOGGED days (zero entries). " +
+        "Use it for team-workload and \"which days have no time logged\" questions; for one task's entries use get_task_time_entries. " +
+        "userIds is required (no team roster exists server-side — find ids with list_users). " +
+        "\"Unlogged\" means Mon-Fri days with zero entries unless workingDays passes an explicit day list; the output states which definition was used. " +
+        "Range is capped at 92 days. Output is aggregates only, never raw entry dumps. " +
+        'Input example: { userIds: [403, 312], dateFrom: "2026-07-01", dateTo: "2026-07-31" }.',
+      inputSchema: getTimeReportSchema.shape,
+      annotations: { readOnlyHint: true },
+    },
+    async (params) => text(await handleGetTimeReport(params)),
+  );
+
+  server.registerTool(
     "get_task_children",
     {
       description:
@@ -584,7 +600,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 34 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 35 tools, 2 skills. Stdio.`);
   }
 }
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { planfixPost } from "../client.js";
 import { assertTaskInTestProject } from "../safemode.js";
-import { formatTimeEntryList, jsonFallback } from "../format.js";
+import { formatTimeEntryList, jsonFallback, findArray } from "../format.js";
 
 // Data tag 59 "Time spent" — the org's time-logging analytic. The data tag id,
 // field ids, value formats, and endpoint behavior were verified live against
@@ -395,4 +395,188 @@ export async function handleGetTaskTimeEntries(params: z.infer<typeof getTaskTim
     type: FIELD_TYPE,
     comment: FIELD_COMMENT,
   });
+}
+
+// ── get_time_report — cross-task per-person workload (ROADMAP P10) ────────────
+
+// Mechanics verified live (docs/spikes/time-report.md, 2026-07-26, re-verified
+// by the reviewing session): POST /datatag/59/entry/list is task-agnostic and
+// filters by data tag field values — type 3103 (List of users) on field 173
+// with value "user:<N>", type 3101 (Date) on field 175 with an otherRange
+// value that is INCLUSIVE on both ends. Every entry carries the user's display
+// name (173 stringValue), a plain calendar date (175), and durationSec (185).
+// Policy stays agent-side: no team roster and no working-day calendar exist in
+// code — userIds is required, and "unlogged" defaults to Mon-Fri with zero
+// entries unless the caller passes an explicit workingDays list. The output
+// states which definition was used.
+
+const FILTER_USER_LIST_FIELD = 3103;
+const FILTER_DATE_FIELD = 3101;
+const REPORT_FIELDS = `key,${FIELD_USER},${FIELD_DATE},${FIELD_TIME}`;
+const REPORT_MAX_USERS = 10;
+const REPORT_MAX_DAYS = 92;
+const REPORT_MAX_PAGES_PER_USER = 10; // × 100 rows — totals become "N+" lower bounds when hit
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const getTimeReportSchema = z.object({
+  userIds: z.array(z.number().int().positive()).min(1).max(REPORT_MAX_USERS)
+    .describe(`Employee IDs to report on (1-${REPORT_MAX_USERS}). Find ids with list_users. No team roster exists in code — pass everyone you need`),
+  dateFrom: z.string().regex(ISO_DATE, "dateFrom must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
+    .describe("Range start (ISO, YYYY-MM-DD, inclusive)"),
+  dateTo: z.string().regex(ISO_DATE, "dateTo must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-31")
+    .describe("Range end (ISO, YYYY-MM-DD, inclusive)"),
+  workingDays: z.array(z.string().regex(ISO_DATE, "each workingDays item must be an ISO date in YYYY-MM-DD format")).optional()
+    .describe("Explicit working-day calendar (ISO dates inside the range): unlogged days are computed against this list instead of the default Mon-Fri. No calendar exists in code"),
+});
+
+const isoToDdMmYyyy = (iso: string): string => {
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
+};
+const ddMmYyyyToIso = (dmy: string): string | undefined => {
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(dmy);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
+};
+const isoToUtc = (iso: string): number => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+const DAY_MS = 86_400_000;
+const utcToIso = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const isWeekday = (ms: number): boolean => {
+  const dow = new Date(ms).getUTCDay();
+  return dow >= 1 && dow <= 5;
+};
+
+type Obj = Record<string, unknown>;
+const asObj = (v: unknown): Obj | undefined =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined;
+
+type UserReport = {
+  userId: number;
+  name?: string;
+  entryCount: number;
+  totalSec: number;
+  perDay: Map<string, { sec: number; count: number }>; // ISO date → totals
+  capped: boolean;
+};
+
+async function collectUserEntries(userId: number, dateFrom: string, dateTo: string): Promise<UserReport> {
+  const report: UserReport = { userId, entryCount: 0, totalSec: 0, perDay: new Map(), capped: false };
+  const filters = [
+    { type: FILTER_USER_LIST_FIELD, field: FIELD_USER, operator: "equal", value: `user:${userId}` },
+    { type: FILTER_DATE_FIELD, field: FIELD_DATE, operator: "equal", value: { dateType: "otherRange", dateFrom: isoToDdMmYyyy(dateFrom), dateTo: isoToDdMmYyyy(dateTo) } },
+  ];
+  for (let page = 0; page < REPORT_MAX_PAGES_PER_USER; page++) {
+    const resp = await planfixPost("datatag/59/entry/list", {
+      offset: page * 100,
+      pageSize: 100,
+      fields: REPORT_FIELDS,
+      filters,
+    });
+    const items = findArray(resp, ["dataTagEntries", "entries"]) ?? [];
+    for (const item of items) {
+      const e = asObj(item);
+      let iso: string | undefined;
+      let sec = 0;
+      for (const cf of (findArray(e ?? {}, ["customFieldData"]) ?? []).map(asObj)) {
+        const fid = asObj(cf?.field)?.id;
+        if (fid === FIELD_DATE) {
+          const raw = asObj(cf?.value)?.date ?? cf?.stringValue;
+          if (typeof raw === "string") iso = ddMmYyyyToIso(raw);
+        } else if (fid === FIELD_TIME) {
+          const dur = asObj(cf?.value)?.durationSec;
+          if (typeof dur === "number") sec = dur;
+        } else if (fid === FIELD_USER && report.name === undefined) {
+          const n = cf?.stringValue;
+          if (typeof n === "string" && n.length > 0) report.name = n;
+        }
+      }
+      report.entryCount++;
+      report.totalSec += sec;
+      if (iso) {
+        const day = report.perDay.get(iso) ?? { sec: 0, count: 0 };
+        day.sec += sec;
+        day.count++;
+        report.perDay.set(iso, day);
+      }
+    }
+    if (items.length < 100) return report;
+  }
+  report.capped = true; // every page up to the cap came back full — more may follow
+  return report;
+}
+
+const fmtHours = (sec: number): string => fmtDur(Math.round(sec / 60));
+
+export async function handleGetTimeReport(params: z.infer<typeof getTimeReportSchema>): Promise<string> {
+  const fromMs = isoToUtc(params.dateFrom);
+  const toMs = isoToUtc(params.dateTo);
+  if (fromMs > toMs) {
+    throw new Error(`dateFrom (${params.dateFrom}) must not be after dateTo (${params.dateTo}).`);
+  }
+  const rangeDays = Math.round((toMs - fromMs) / DAY_MS) + 1;
+  if (rangeDays > REPORT_MAX_DAYS) {
+    throw new Error(
+      `The range ${params.dateFrom}..${params.dateTo} spans ${rangeDays} days — get_time_report is capped at ${REPORT_MAX_DAYS} days. ` +
+      "Split the period into shorter ranges.",
+    );
+  }
+
+  // Candidate working days: the caller's explicit calendar, or Mon-Fri.
+  let candidates: string[];
+  let definition: string;
+  if (params.workingDays !== undefined) {
+    const outside = params.workingDays.filter((d) => isoToUtc(d) < fromMs || isoToUtc(d) > toMs);
+    if (outside.length > 0) {
+      throw new Error(
+        `workingDays must lie inside ${params.dateFrom}..${params.dateTo}; outside: ${outside.join(", ")}.`,
+      );
+    }
+    candidates = [...new Set(params.workingDays)].sort();
+    definition = `Unlogged = the ${candidates.length} caller-provided workingDays with zero entries.`;
+  } else {
+    candidates = [];
+    for (let ms = fromMs; ms <= toMs; ms += DAY_MS) {
+      if (isWeekday(ms)) candidates.push(utcToIso(ms));
+    }
+    definition = "Unlogged = Mon-Fri days in range with zero entries.";
+  }
+
+  // One query chain per user (multi-user single-call filtering unverified —
+  // spike open question 1; cost is users × pages, measured cheap).
+  const reports: UserReport[] = [];
+  for (const userId of params.userIds) {
+    reports.push(await collectUserEntries(userId, params.dateFrom, params.dateTo));
+  }
+
+  const lines: string[] = [
+    `Time report ${params.dateFrom}..${params.dateTo} (${rangeDays} days, ${reports.length} user${reports.length === 1 ? "" : "s"}).`,
+    definition,
+  ];
+  for (const r of reports) {
+    const who = `user:${r.userId}${r.name ? ` ${r.name}` : ""}`;
+    const unlogged = candidates.filter((d) => !r.perDay.has(d));
+    lines.push("");
+    if (r.entryCount === 0) {
+      lines.push(`${who} — no entries in range.`);
+      lines.push(`  Unlogged days (${unlogged.length} of ${candidates.length}): all working days in range.`);
+      continue;
+    }
+    const plus = r.capped ? "+" : "";
+    const capNote = r.capped
+      ? ` (scan cap reached at ${REPORT_MAX_PAGES_PER_USER * 100} entries — totals are lower bounds; narrow the date range for exact numbers)`
+      : "";
+    const dayWord = r.perDay.size === 1 && !r.capped ? "day" : "days";
+    const entryWord = r.entryCount === 1 && !r.capped ? "entry" : "entries";
+    lines.push(`${who} — total ${fmtHours(r.totalSec)}${plus} across ${r.perDay.size}${plus} ${dayWord} (${r.entryCount}${plus} ${entryWord})${capNote}:`);
+    for (const day of [...r.perDay.keys()].sort()) {
+      const { sec, count } = r.perDay.get(day)!;
+      lines.push(`  ${day}: ${fmtHours(sec)} (${count} entr${count === 1 ? "y" : "ies"})`);
+    }
+    lines.push(unlogged.length > 0
+      ? `  Unlogged days (${unlogged.length} of ${candidates.length}): ${unlogged.join(", ")}`
+      : `  Unlogged days: none of the ${candidates.length} working days.`);
+  }
+  return lines.join("\n");
 }
