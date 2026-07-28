@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixPost } from "../client.js";
+import { planfixPost, planfixMutate } from "../client.js";
 import { assertTaskInTestProject } from "../safemode.js";
 import { formatTimeEntryList, jsonFallback, findArray } from "../format.js";
 import { HHMM, toMin, toHHMM, fmtDur, isoDate, isoToPlanfixDate, obj } from "../util.js";
@@ -54,7 +54,7 @@ async function writeTimeEntry(
     ? `task/${params.taskId}/datatags/${params.commentId}`
     : `task/${params.taskId}/datatags/`;
 
-  const result = await planfixPost(endpoint, {
+  const result = await planfixMutate(endpoint, {
     dataTag: { id: TIME_SPENT_DATATAG_ID },
     items: [{
       customFieldData: [

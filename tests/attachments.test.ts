@@ -14,12 +14,13 @@ const CYRILLIC = /[а-яА-ЯёЁ]/;
 
 vi.mock("../src/client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/client.js")>();
-  return { ...actual, planfixPost: vi.fn(), planfixGet: vi.fn(), planfixUploadFile: vi.fn() };
+  return { ...actual, planfixPost: vi.fn(), planfixGet: vi.fn(), planfixMutate: vi.fn(), planfixUploadFile: vi.fn() };
 });
 
-import { planfixPost, planfixGet, planfixUploadFile } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate, planfixUploadFile } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 const mockUpload = vi.mocked(planfixUploadFile);
 
@@ -86,39 +87,39 @@ describe("attach_file_to_task", () => {
 
   it("localPath: uploads then attaches via the dedicated endpoint with the task id as a query param", async () => {
     mockUpload.mockResolvedValue({ result: "success", id: 42 });
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleAttachFileToTask } = await import("../src/tools/files.js");
     const out = await handleAttachFileToTask({ taskId: 123, localPath: smallFile });
     expect(mockUpload).toHaveBeenCalledWith("report.docx", expect.any(Uint8Array));
-    expect(mockPost).toHaveBeenCalledWith("file/42/attach/task?id=123");
+    expect(mockMutate).toHaveBeenCalledWith("file/42/attach/task?id=123");
     expect(out).toContain("✓ File #42");
     expect(out).toContain("(1 KB)");
     expect(out).toContain("attached to task 123");
   });
 
   it("url: uploads via file/from-url/ then attaches; name override forwarded", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", id: 77 })  // from-url
       .mockResolvedValueOnce({ result: "success" });          // attach
     mockGet.mockResolvedValue({ file: { id: 77, name: "r.pdf", size: 3 } });
     const { handleAttachFileToTask } = await import("../src/tools/files.js");
     const out = await handleAttachFileToTask({ taskId: 9, url: "https://example.com/r.pdf", name: "r.pdf" });
-    expect(mockPost).toHaveBeenNthCalledWith(1, "file/from-url/", { url: "https://example.com/r.pdf", name: "r.pdf" });
-    expect(mockPost).toHaveBeenNthCalledWith(2, "file/77/attach/task?id=9");
+    expect(mockMutate).toHaveBeenNthCalledWith(1, "file/from-url/", { url: "https://example.com/r.pdf", name: "r.pdf" });
+    expect(mockMutate).toHaveBeenNthCalledWith(2, "file/77/attach/task?id=9");
     expect(out).toContain("✓ File #77");
   });
 
   it("fileId: attaches directly with no upload call", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleAttachFileToTask } = await import("../src/tools/files.js");
     const out = await handleAttachFileToTask({ taskId: 9, fileId: 1729843 });
     expect(mockUpload).not.toHaveBeenCalled();
-    expect(mockPost).toHaveBeenCalledWith("file/1729843/attach/task?id=9");
+    expect(mockMutate).toHaveBeenCalledWith("file/1729843/attach/task?id=9");
     expect(out).toContain("existing Planfix file");
   });
 
   it("propagates the code-41 unsafe-url failure from the from-url leg", async () => {
-    mockPost.mockRejectedValueOnce(new Error("Planfix API error 41: Unsafe url for downloading file"));
+    mockMutate.mockRejectedValueOnce(new Error("Planfix API error 41: Unsafe url for downloading file"));
     const { handleAttachFileToTask } = await import("../src/tools/files.js");
     await expect(handleAttachFileToTask({ taskId: 9, url: "https://planfix.com/favicon.ico" }))
       .rejects.toThrow("error 41");
@@ -136,10 +137,10 @@ describe("add_comment with files", () => {
 
   it("uploads paths, passes fileIds through, sends files: [{id}] in the comment body", async () => {
     mockUpload.mockResolvedValue({ result: "success", id: 42 });
-    mockPost.mockResolvedValue({ result: "success", id: 900 });
+    mockMutate.mockResolvedValue({ result: "success", id: 900 });
     const { handleAddComment } = await import("../src/tools/comments.js");
     const out = await handleAddComment({ taskId: 123, body: "Report attached.", files: [smallFile, 1729843] });
-    expect(mockPost).toHaveBeenCalledWith("task/123/comments/", {
+    expect(mockMutate).toHaveBeenCalledWith("task/123/comments/", {
       description: "Report attached.",
       files: [{ id: 42 }, { id: 1729843 }],
     });
@@ -149,17 +150,17 @@ describe("add_comment with files", () => {
   });
 
   it("without files the body carries no files key (backward compatible)", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 901 });
+    mockMutate.mockResolvedValue({ result: "success", id: 901 });
     const { handleAddComment } = await import("../src/tools/comments.js");
     await handleAddComment({ taskId: 123, body: "plain" });
-    expect(mockPost).toHaveBeenCalledWith("task/123/comments/", { description: "plain" });
+    expect(mockMutate).toHaveBeenCalledWith("task/123/comments/", { description: "plain" });
   });
 
   it("a bad path refuses BEFORE the comment is created", async () => {
     const { handleAddComment } = await import("../src/tools/comments.js");
     await expect(handleAddComment({ taskId: 123, body: "x", files: [join(dir, "missing.pdf")] }))
       .rejects.toThrow(/File not found/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("schema caps files at 10 and rejects empty strings", async () => {

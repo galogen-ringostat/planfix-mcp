@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 describe("tasks tools", () => {
@@ -39,10 +42,10 @@ describe("tasks tools", () => {
   });
 
   it("handleCreateTask sends PeopleRequest assignees shape", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 10 });
+    mockMutate.mockResolvedValue({ result: "success", id: 10 });
     const { handleCreateTask } = await import("../src/tools/tasks.js");
     const result = await handleCreateTask({ name: "New task", projectId: 3, assigneeId: 7 });
-    expect(mockPost).toHaveBeenCalledWith("task/", {
+    expect(mockMutate).toHaveBeenCalledWith("task/", {
       name: "New task",
       project: { id: 3 },
       assignees: { users: [{ id: "user:7" }] },
@@ -51,10 +54,10 @@ describe("tasks tools", () => {
   });
 
   it("handleUpdateTask sends status object and ack", async () => {
-    mockPost.mockResolvedValue({});
+    mockMutate.mockResolvedValue({});
     const { handleUpdateTask } = await import("../src/tools/tasks.js");
     const result = await handleUpdateTask({ taskId: 10, name: "Updated", status: 2 });
-    expect(mockPost).toHaveBeenCalledWith("task/10", {
+    expect(mockMutate).toHaveBeenCalledWith("task/10", {
       name: "Updated",
       status: { id: 2 },
     });
@@ -62,10 +65,10 @@ describe("tasks tools", () => {
   });
 
   it("handleUpdateTask fixes assignees shape", async () => {
-    mockPost.mockResolvedValue({});
+    mockMutate.mockResolvedValue({});
     const { handleUpdateTask } = await import("../src/tools/tasks.js");
     await handleUpdateTask({ taskId: 11, assigneeId: 99 });
-    expect(mockPost).toHaveBeenCalledWith("task/11", {
+    expect(mockMutate).toHaveBeenCalledWith("task/11", {
       assignees: { users: [{ id: "user:99" }] },
     });
   });
@@ -93,10 +96,10 @@ describe("contacts tools", () => {
   });
 
   it("handleCreateContact posts to contact/ with phones array", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 50 });
+    mockMutate.mockResolvedValue({ result: "success", id: 50 });
     const { handleCreateContact } = await import("../src/tools/contacts.js");
     const result = await handleCreateContact({ name: "Acme", email: "a@b.c", phone: "+79991234567" });
-    expect(mockPost).toHaveBeenCalledWith("contact/", {
+    expect(mockMutate).toHaveBeenCalledWith("contact/", {
       name: "Acme",
       email: "a@b.c",
       phones: [{ number: "+79991234567" }],
@@ -105,10 +108,10 @@ describe("contacts tools", () => {
   });
 
   it("handleUpdateContact posts to contact/:id", async () => {
-    mockPost.mockResolvedValue({});
+    mockMutate.mockResolvedValue({});
     const { handleUpdateContact } = await import("../src/tools/contacts.js");
     const result = await handleUpdateContact({ contactId: 5, name: "Renamed" });
-    expect(mockPost).toHaveBeenCalledWith("contact/5", { name: "Renamed" });
+    expect(mockMutate).toHaveBeenCalledWith("contact/5", { name: "Renamed" });
     expect(result).toContain("#5");
   });
 });
@@ -148,10 +151,10 @@ describe("comments tools (plural path regression)", () => {
   });
 
   it("handleAddComment posts to task/:id/comments/ (plural) with description", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 99 });
+    mockMutate.mockResolvedValue({ result: "success", id: 99 });
     const { handleAddComment } = await import("../src/tools/comments.js");
     await handleAddComment({ taskId: 5, body: "Hello" });
-    expect(mockPost).toHaveBeenCalledWith("task/5/comments/", { description: "Hello" });
+    expect(mockMutate).toHaveBeenCalledWith("task/5/comments/", { description: "Hello" });
   });
 });
 
@@ -221,10 +224,10 @@ describe("files tools", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("handleUploadFileFromUrl posts to file/from-url/ with url+name", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 321 });
+    mockMutate.mockResolvedValue({ result: "success", id: 321 });
     const { handleUploadFileFromUrl } = await import("../src/tools/files.js");
     const result = await handleUploadFileFromUrl({ url: "https://x/y.pdf", name: "y.pdf" });
-    expect(mockPost).toHaveBeenCalledWith("file/from-url/", { url: "https://x/y.pdf", name: "y.pdf" });
+    expect(mockMutate).toHaveBeenCalledWith("file/from-url/", { url: "https://x/y.pdf", name: "y.pdf" });
     expect(result).toContain("ID: 321");
   });
 

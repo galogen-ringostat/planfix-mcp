@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixGet, planfixPost } from "../client.js";
+import { planfixGet, planfixMutate } from "../client.js";
 import { formatCustomFieldList, findArray, jsonFallback } from "../format.js";
 import { HHMM, toMin, toHHMM, fmtDur, obj, findCustomFieldEntry, type Json } from "../util.js";
 import { assertTaskInTestProject } from "../safemode.js";
@@ -83,7 +83,7 @@ export async function handleSetTaskCustomField(params: z.infer<typeof setTaskCus
     );
   }
 
-  await planfixPost(`task/${params.taskId}`, {
+  await planfixMutate(`task/${params.taskId}`, {
     customFieldData: [{ field: { id: params.fieldId }, value: params.value }],
   });
 
@@ -242,7 +242,7 @@ export async function handleAddEstimation(params: z.infer<typeof addEstimationSc
       const endpoint = commentId !== undefined
         ? `task/${params.taskId}/datatags/${commentId}`
         : `task/${params.taskId}/datatags/`;
-      const result = await planfixPost(endpoint, {
+      const result = await planfixMutate(endpoint, {
         dataTag: { id: ESTIMATION_DATATAG_ID },
         items: [{
           customFieldData: [

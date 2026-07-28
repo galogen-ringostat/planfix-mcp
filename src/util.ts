@@ -3,11 +3,26 @@
 // that lived in two or more src/tools/* files.
 
 import { z } from "zod";
-import { obj, findArray, type Json } from "./format.js";
 
 // ── Object shims (D1) ─────────────────────────────────────────────────────────
+// Defined HERE as the dependency base; src/format.ts re-exports them for its
+// existing importers (util must not import from format — format uses fmtDur).
 
-export { obj, type Json } from "./format.js";
+export type Json = Record<string, unknown>;
+
+/** Narrow an unknown to a plain object. */
+export function obj(v: unknown): Json | undefined {
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined;
+}
+
+/** Find the entity array in a response: preferred keys first, then the first array found. */
+export function findArray(resp: unknown, keys: string[]): unknown[] | undefined {
+  const o = obj(resp);
+  if (!o) return undefined;
+  for (const k of keys) if (Array.isArray(o[k])) return o[k] as unknown[];
+  for (const v of Object.values(o)) if (Array.isArray(v)) return v as unknown[];
+  return undefined;
+}
 
 // ── HH:MM clock helpers (D2) ──────────────────────────────────────────────────
 

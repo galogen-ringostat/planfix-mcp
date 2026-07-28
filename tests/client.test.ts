@@ -136,6 +136,65 @@ describe("planfixRequest", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  // ── Retry-policy split (audit E1): planfixMutate vs planfixPost ─────────────
+
+  it("planfixMutate does NOT retry a 5xx — single HTTP call, error names the no-retry policy", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("oops", { status: 502, statusText: "Bad Gateway" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixMutate } = await import("../src/client.js");
+    const err = await planfixMutate("task/", { name: "x" }).then(
+      () => { throw new Error("expected an error"); },
+      (e: Error) => e,
+    );
+    expect(err.message).toContain("Planfix HTTP 502");
+    expect(err.message).toContain("NOT retried");
+    expect(err.message).toContain("verify before retrying");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // the whole point: no second write attempt
+  });
+
+  it("planfixPost (read-shaped) still retries a 5xx and succeeds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("oops", { status: 502, statusText: "Bad Gateway" }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: "success", tasks: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixPost } = await import("../src/client.js");
+    const promise = planfixPost("task/list", {});
+    await vi.runAllTimersAsync();
+    await expect(promise).resolves.toMatchObject({ result: "success" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("planfixMutate DOES retry HTTP 429 (pre-commit refusal)", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("slow down", { status: 429, statusText: "Too Many Requests" }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: "success", id: 5 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixMutate } = await import("../src/client.js");
+    const promise = planfixMutate("task/", { name: "x" });
+    await vi.runAllTimersAsync();
+    await expect(promise).resolves.toMatchObject({ result: "success", id: 5 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("planfixMutate DOES retry logical code 22 (pre-commit refusal)", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: "fail", code: 22, error: "rate limit" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: "success", id: 6 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { planfixMutate } = await import("../src/client.js");
+    const promise = planfixMutate("task/", { name: "x" });
+    await vi.runAllTimersAsync();
+    await expect(promise).resolves.toMatchObject({ result: "success", id: 6 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves a meaningful trailing slash (e.g. task/)", async () => {
     const mockResponse = new Response(JSON.stringify({ result: "success", id: 5 }), { status: 200 });
     const fetchMock = vi.fn().mockResolvedValue(mockResponse);

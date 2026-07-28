@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixPost } from "../client.js";
+import { planfixMutate } from "../client.js";
 import { postListPage } from "../paging.js";
 import { formatChecklist, jsonFallback } from "../format.js";
 import { assertTaskInTestProject } from "../safemode.js";
@@ -42,7 +42,7 @@ export async function handleAddChecklistItem(params: z.infer<typeof addChecklist
   const body: Record<string, unknown> = { name: params.name };
   if (params.isDone !== undefined) body.isDone = params.isDone;
   if (params.assigneeId !== undefined) body.assignees = { users: [{ id: `user:${params.assigneeId}` }] };
-  const result = await planfixPost(`task/${params.taskId}/checklist`, body);
+  const result = await planfixMutate(`task/${params.taskId}/checklist`, body);
   const id = (result as { id?: unknown })?.id;
   if (id === undefined) {
     return `Checklist item request accepted, but the response had an unexpected shape (no id):\n${jsonFallback(result)}`;
@@ -58,7 +58,7 @@ export const updateChecklistItemNameSchema = z.object({
 
 export async function handleUpdateChecklistItemName(params: z.infer<typeof updateChecklistItemNameSchema>): Promise<string> {
   await assertTaskInTestProject("update_checklist_item_name", params.taskId);
-  const result = await planfixPost(`task/${params.taskId}/checklist/${params.itemId}`, { name: params.name });
+  const result = await planfixMutate(`task/${params.taskId}/checklist/${params.itemId}`, { name: params.name });
   const failures = (result as { failures?: Array<{ field?: string; error?: string }> })?.failures;
   if (Array.isArray(failures) && failures.length > 0) {
     return `Checklist item ${params.itemId} rename reported failures:\n${jsonFallback(failures)}`;
@@ -74,7 +74,7 @@ export const setChecklistItemDoneSchema = z.object({
 
 export async function handleSetChecklistItemDone(params: z.infer<typeof setChecklistItemDoneSchema>): Promise<string> {
   await assertTaskInTestProject("set_checklist_item_done", params.taskId);
-  const result = await planfixPost(`task/${params.taskId}/checklist/${params.itemId}`, { isDone: params.isDone });
+  const result = await planfixMutate(`task/${params.taskId}/checklist/${params.itemId}`, { isDone: params.isDone });
   // The update endpoint can return { result: "success", failures: [...] } —
   // surface per-field failures instead of claiming success.
   const failures = (result as { failures?: Array<{ field?: string; error?: string }> })?.failures;

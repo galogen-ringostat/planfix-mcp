@@ -1,7 +1,7 @@
 import { statSync, readFileSync } from "node:fs";
 import { basename, isAbsolute } from "node:path";
 import { z } from "zod";
-import { planfixPost, planfixGet, planfixUploadFile } from "../client.js";
+import { planfixGet, planfixMutate, planfixUploadFile } from "../client.js";
 import { formatFile, formatCreated } from "../format.js";
 import { assertTaskInTestProject, refuseUnscopedMutation } from "../safemode.js";
 
@@ -18,7 +18,7 @@ export async function handleUploadFileFromUrl(params: z.infer<typeof uploadFileF
   refuseUnscopedMutation("upload_file_from_url", params.url, "the tool has no task/project target");
   const body: Record<string, unknown> = { url: params.url };
   if (params.name) body.name = params.name;
-  const result = await planfixPost("file/from-url/", body);
+  const result = await planfixMutate("file/from-url/", body);
   return formatCreated("File", result);
 }
 
@@ -116,7 +116,7 @@ export async function handleAttachFileToTask(params: z.infer<typeof attachFileTo
   } else if (params.url !== undefined) {
     const body: Record<string, unknown> = { url: params.url };
     if (params.name) body.name = params.name;
-    const resp = await planfixPost("file/from-url/", body);
+    const resp = await planfixMutate("file/from-url/", body);
     const id = (resp as { id?: unknown })?.id;
     if (typeof id !== "number") {
       throw new Error(`URL upload returned an unexpected response shape (no numeric id): ${JSON.stringify(resp)}`);
@@ -130,7 +130,7 @@ export async function handleAttachFileToTask(params: z.infer<typeof attachFileTo
 
   // Dedicated attach endpoint; the task id is a QUERY parameter also named
   // `id` (verified live, docs/spikes/file-attachments.md).
-  await planfixPost(`file/${fileId}/attach/task?id=${params.taskId}`);
+  await planfixMutate(`file/${fileId}/attach/task?id=${params.taskId}`);
 
   // Name/size for the acknowledgement (size is KB, API unit).
   const meta = await planfixGet(`file/${fileId}`, { fields: "id,name,size" });

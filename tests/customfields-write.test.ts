@@ -5,11 +5,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 const CYRILLIC = /[а-яА-ЯёЁ]/;
@@ -35,10 +38,10 @@ describe("set_task_custom_field", () => {
 
   it("happy path: validates, writes, verifies by read-back", async () => {
     mockLookupAndReadback({ value: "Sprint 10 - 2026", stringValue: "Sprint 10 - 2026" });
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleSetTaskCustomField } = await import("../src/tools/customfields.js");
     const out = await handleSetTaskCustomField({ taskId: 123, fieldId: 22571, value: "Sprint 10 - 2026" });
-    expect(mockPost).toHaveBeenCalledWith("task/123", {
+    expect(mockMutate).toHaveBeenCalledWith("task/123", {
       customFieldData: [{ field: { id: 22571 }, value: "Sprint 10 - 2026" }],
     });
     expect(mockGet).toHaveBeenCalledWith("task/123", { fields: "id,22571" });
@@ -146,14 +149,14 @@ describe("add_estimation", () => {
   });
 
   it("writes chunks with the from/to shape ONLY, chains onto one comment, reports the new total", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [127901], commentId: 47886313 })
       .mockResolvedValueOnce({ result: "success", keys: [127905] });
     mockGet.mockResolvedValue(SUMMARY);
     const { handleAddEstimation } = await import("../src/tools/customfields.js");
     const out = await handleAddEstimation({ taskId: 123, userId: 403, hours: 30 });
 
-    expect(mockPost).toHaveBeenNthCalledWith(1, "task/123/datatags/", {
+    expect(mockMutate).toHaveBeenNthCalledWith(1, "task/123/datatags/", {
       dataTag: { id: 61 },
       items: [{ customFieldData: [
         { field: { id: 187 }, value: [{ id: "user:403" }] },
@@ -161,9 +164,9 @@ describe("add_estimation", () => {
       ] }],
     });
     // second entry chains onto the comment returned by the first
-    expect(mockPost).toHaveBeenNthCalledWith(2, "task/123/datatags/47886313", expect.objectContaining({ dataTag: { id: 61 } }));
+    expect(mockMutate).toHaveBeenNthCalledWith(2, "task/123/datatags/47886313", expect.objectContaining({ dataTag: { id: 61 } }));
     // durationSec must never appear in any write body (proven silent no-op)
-    for (const [, body] of mockPost.mock.calls) {
+    for (const [, body] of mockMutate.mock.calls) {
       expect(JSON.stringify(body)).not.toContain("durationSec");
     }
     expect(mockGet).toHaveBeenCalledWith("task/123", { fields: "id,22453" });
@@ -205,7 +208,7 @@ describe("add_estimation", () => {
   });
 
   it("mid-sequence write failure stops, never retries, and reports landed vs not-landed exactly", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [200], commentId: 900 })
       .mockRejectedValueOnce(new Error("Planfix HTTP 500"));
     const { handleAddEstimation } = await import("../src/tools/customfields.js");
@@ -216,7 +219,7 @@ describe("add_estimation", () => {
     expect(out).toContain("NOT written (1)");
     expect(out).toContain("00:00-06:00 (6h)");
     expect(out).toContain("Planfix HTTP 500");
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
   });
 
   it("schema: workday.exclusions is required inside workday (no default), [] allowed", async () => {

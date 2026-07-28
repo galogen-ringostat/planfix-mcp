@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 const TEST_PROJECT = 572465;
@@ -55,10 +58,10 @@ afterEach(() => { vi.unstubAllEnvs(); });
 
 describe("add_time_entry", () => {
   it("posts the spike-verified body to task/:id/datatags/ and returns key + commentId", async () => {
-    mockPost.mockResolvedValue({ result: "success", keys: [127822], commentId: 47856597 });
+    mockMutate.mockResolvedValue({ result: "success", keys: [127822], commentId: 47856597 });
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     const result = await handleAddTimeEntry(VALID_ENTRY);
-    expect(mockPost).toHaveBeenCalledWith("task/9/datatags/", EXPECTED_BODY);
+    expect(mockMutate).toHaveBeenCalledWith("task/9/datatags/", EXPECTED_BODY);
     expect(result).toContain("key 127822");
     expect(result).toContain("commentId 47856597");
     expect(result).toContain("commentId: 47856597"); // chaining hint
@@ -68,10 +71,10 @@ describe("add_time_entry", () => {
   it("with commentId posts to task/:id/datatags/:commentId (append to logging-period comment)", async () => {
     // Real append-endpoint response has NO commentId field (verified live,
     // entry 127824): { result, keys } only. The ack echoes the input commentId.
-    mockPost.mockResolvedValue({ result: "success", keys: [127900] });
+    mockMutate.mockResolvedValue({ result: "success", keys: [127900] });
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     const result = await handleAddTimeEntry({ ...VALID_ENTRY, commentId: 555 });
-    expect(mockPost).toHaveBeenCalledWith("task/9/datatags/555", EXPECTED_BODY);
+    expect(mockMutate).toHaveBeenCalledWith("task/9/datatags/555", EXPECTED_BODY);
     expect(result).toContain("✓ Time entry created");
     expect(result).toContain("key 127900");
     expect(result).toContain("commentId 555");
@@ -79,7 +82,7 @@ describe("add_time_entry", () => {
   });
 
   it("append path with no keys in the response still falls back to raw JSON", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     const result = await handleAddTimeEntry({ ...VALID_ENTRY, commentId: 555 });
     expect(result).toContain("unexpected shape");
@@ -87,7 +90,7 @@ describe("add_time_entry", () => {
   });
 
   it("falls back to raw JSON on an unexpected response shape, in English", async () => {
-    mockPost.mockResolvedValue({ result: "success" }); // no keys/commentId
+    mockMutate.mockResolvedValue({ result: "success" }); // no keys/commentId
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     const result = await handleAddTimeEntry(VALID_ENTRY);
     expect(result).toContain("unexpected shape");
@@ -119,12 +122,12 @@ describe("add_time_entry", () => {
     vi.stubEnv("PLANFIX_SAFE_MODE", "1");
     vi.stubEnv("PLANFIX_TEST_PROJECT_ID", String(TEST_PROJECT));
     mockGet.mockResolvedValue({ task: { id: 9, project: { id: TEST_PROJECT } } });
-    mockPost.mockResolvedValue({ result: "success", keys: [1], commentId: 2 });
+    mockMutate.mockResolvedValue({ result: "success", keys: [1], commentId: 2 });
     const { handleAddTimeEntry } = await import("../src/tools/timeentries.js");
     await handleAddTimeEntry(VALID_ENTRY);
     expect(mockGet).toHaveBeenCalledWith("task/9", { fields: "id,project" });
-    expect(mockPost).toHaveBeenCalledWith("task/9/datatags/", EXPECTED_BODY);
-    expect(mockGet.mock.invocationCallOrder[0]).toBeLessThan(mockPost.mock.invocationCallOrder[0]);
+    expect(mockMutate).toHaveBeenCalledWith("task/9/datatags/", EXPECTED_BODY);
+    expect(mockGet.mock.invocationCallOrder[0]).toBeLessThan(mockMutate.mock.invocationCallOrder[0]);
   });
 
   it("safe mode ON: refused for a task outside the test project; no mutating POST", async () => {

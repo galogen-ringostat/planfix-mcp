@@ -4,11 +4,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 // Shapes as returned live by GET task/412626?fields=id,name,22571,… (2026-07-26).

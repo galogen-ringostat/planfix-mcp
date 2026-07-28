@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 const TEST_PROJECT = 572465;
@@ -77,19 +80,19 @@ describe("get_task_checklist", () => {
 
 describe("add_checklist_item", () => {
   it("posts name only by default and reports the new id", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 777 });
+    mockMutate.mockResolvedValue({ result: "success", id: 777 });
     const { handleAddChecklistItem } = await import("../src/tools/checklists.js");
     const result = await handleAddChecklistItem({ taskId: 9, name: "Review the draft" });
-    expect(mockPost).toHaveBeenCalledWith("task/9/checklist", { name: "Review the draft" });
+    expect(mockMutate).toHaveBeenCalledWith("task/9/checklist", { name: "Review the draft" });
     expect(result).toContain("✓ Checklist item created: id 777 on task 9.");
     expect(result).not.toMatch(CYRILLIC_BAN_SCOPE);
   });
 
   it("passes isDone and prefixed assignee when provided", async () => {
-    mockPost.mockResolvedValue({ result: "success", id: 778 });
+    mockMutate.mockResolvedValue({ result: "success", id: 778 });
     const { handleAddChecklistItem } = await import("../src/tools/checklists.js");
     await handleAddChecklistItem({ taskId: 9, name: "x", isDone: true, assigneeId: 403 });
-    expect(mockPost).toHaveBeenCalledWith("task/9/checklist", {
+    expect(mockMutate).toHaveBeenCalledWith("task/9/checklist", {
       name: "x",
       isDone: true,
       assignees: { users: [{ id: "user:403" }] },
@@ -97,7 +100,7 @@ describe("add_checklist_item", () => {
   });
 
   it("falls back to raw JSON on an unexpected response shape (no id)", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleAddChecklistItem } = await import("../src/tools/checklists.js");
     const result = await handleAddChecklistItem({ taskId: 9, name: "x" });
     expect(result).toContain("unexpected shape");
@@ -108,16 +111,16 @@ describe("add_checklist_item", () => {
     vi.stubEnv("PLANFIX_SAFE_MODE", "1");
     vi.stubEnv("PLANFIX_TEST_PROJECT_ID", String(TEST_PROJECT));
     inTestProject();
-    mockPost.mockResolvedValue({ result: "success", id: 1 });
+    mockMutate.mockResolvedValue({ result: "success", id: 1 });
     const { handleAddChecklistItem } = await import("../src/tools/checklists.js");
     await handleAddChecklistItem({ taskId: 9, name: "x" });
-    expect(mockGet.mock.invocationCallOrder[0]).toBeLessThan(mockPost.mock.invocationCallOrder[0]);
+    expect(mockGet.mock.invocationCallOrder[0]).toBeLessThan(mockMutate.mock.invocationCallOrder[0]);
 
     vi.clearAllMocks();
     mockGet.mockResolvedValue({ task: { id: 9, project: { id: 111 } } });
     await expect(handleAddChecklistItem({ taskId: 9, name: "x" }))
       .rejects.toThrow(/add_checklist_item refused.*task 9.*111.*572465/s);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("fail-closed before any HTTP", async () => {
@@ -127,16 +130,16 @@ describe("add_checklist_item", () => {
     await expect(handleAddChecklistItem({ taskId: 9, name: "x" }))
       .rejects.toThrow(/PLANFIX_TEST_PROJECT_ID is unset or not a positive integer/);
     expect(mockGet).not.toHaveBeenCalled();
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 });
 
 describe("update_checklist_item_name", () => {
   it("posts {name} to task/:id/checklist/:itemId and echoes the new name", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
     const result = await handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "[cancelled] Review the draft" });
-    expect(mockPost).toHaveBeenCalledWith("task/9/checklist/456", { name: "[cancelled] Review the draft" });
+    expect(mockMutate).toHaveBeenCalledWith("task/9/checklist/456", { name: "[cancelled] Review the draft" });
     expect(result).toContain("✓ Checklist item 456 on task 9 renamed to: [cancelled] Review the draft");
     expect(result).not.toMatch(CYRILLIC_BAN_SCOPE);
   });
@@ -148,7 +151,7 @@ describe("update_checklist_item_name", () => {
   });
 
   it("surfaces per-field failures instead of claiming success", async () => {
-    mockPost.mockResolvedValue({ result: "success", failures: [{ field: "name", error: "too long" }] });
+    mockMutate.mockResolvedValue({ result: "success", failures: [{ field: "name", error: "too long" }] });
     const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
     const result = await handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" });
     expect(result).toContain("reported failures");
@@ -163,31 +166,31 @@ describe("update_checklist_item_name", () => {
     const { handleUpdateChecklistItemName } = await import("../src/tools/checklists.js");
     await expect(handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" }))
       .rejects.toThrow(/update_checklist_item_name refused.*task 9.*111.*572465/s);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
 
     vi.clearAllMocks();
     vi.stubEnv("PLANFIX_TEST_PROJECT_ID", "");
     await expect(handleUpdateChecklistItemName({ taskId: 9, itemId: 456, name: "x" }))
       .rejects.toThrow(/PLANFIX_TEST_PROJECT_ID is unset/);
     expect(mockGet).not.toHaveBeenCalled();
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 });
 
 describe("set_checklist_item_done", () => {
   it("checks an item: posts {isDone: true} to task/:id/checklist/:itemId", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleSetChecklistItemDone } = await import("../src/tools/checklists.js");
     const result = await handleSetChecklistItemDone({ taskId: 9, itemId: 456, isDone: true });
-    expect(mockPost).toHaveBeenCalledWith("task/9/checklist/456", { isDone: true });
+    expect(mockMutate).toHaveBeenCalledWith("task/9/checklist/456", { isDone: true });
     expect(result).toContain("✓ Checklist item 456 on task 9 marked checked [x].");
   });
 
   it("un-checks an item with explicit isDone: false", async () => {
-    mockPost.mockResolvedValue({ result: "success" });
+    mockMutate.mockResolvedValue({ result: "success" });
     const { handleSetChecklistItemDone } = await import("../src/tools/checklists.js");
     const result = await handleSetChecklistItemDone({ taskId: 9, itemId: 456, isDone: false });
-    expect(mockPost).toHaveBeenCalledWith("task/9/checklist/456", { isDone: false });
+    expect(mockMutate).toHaveBeenCalledWith("task/9/checklist/456", { isDone: false });
     expect(result).toContain("marked unchecked [ ]");
     expect(result).not.toMatch(CYRILLIC_BAN_SCOPE);
   });
@@ -199,7 +202,7 @@ describe("set_checklist_item_done", () => {
   });
 
   it("surfaces per-field failures from a nominally successful update", async () => {
-    mockPost.mockResolvedValue({ result: "success", failures: [{ field: "isDone", error: "some reason" }] });
+    mockMutate.mockResolvedValue({ result: "success", failures: [{ field: "isDone", error: "some reason" }] });
     const { handleSetChecklistItemDone } = await import("../src/tools/checklists.js");
     const result = await handleSetChecklistItemDone({ taskId: 9, itemId: 456, isDone: true });
     expect(result).toContain("reported failures");
@@ -214,7 +217,7 @@ describe("set_checklist_item_done", () => {
     const { handleSetChecklistItemDone } = await import("../src/tools/checklists.js");
     await expect(handleSetChecklistItemDone({ taskId: 9, itemId: 456, isDone: true }))
       .rejects.toThrow(/set_checklist_item_done refused.*task 9/s);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
 
     vi.clearAllMocks();
     vi.stubEnv("PLANFIX_TEST_PROJECT_ID", "");

@@ -42,7 +42,13 @@ export async function planfixRequest(
   method: "GET" | "POST",
   endpoint: string,
   body?: Record<string, unknown>,
+  // retryTransient=false (mutating call sites): 5xx and timeouts are NOT
+  // retried — the server may have committed the write before failing to
+  // answer, and a retry would double-create (audit E1). HTTP-429 and logical
+  // code-22 stay retryable in both modes: they are pre-commit refusals.
+  opts: { retryTransient?: boolean } = {},
 ): Promise<unknown> {
+  const retryTransient = opts.retryTransient !== false;
   const auth = getAuthHeader();
   const baseUrl = getBaseUrl();
   // Preserve a meaningful trailing slash (Planfix documents `POST /task/` and
@@ -90,7 +96,8 @@ export async function planfixRequest(
         return parsed;
       }
 
-      if ((response.status === 429 || response.status >= 500) && attempt < MAX_RETRIES) {
+      const transientHttp = response.status >= 500;
+      if ((response.status === 429 || (transientHttp && retryTransient)) && attempt < MAX_RETRIES) {
         const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
         console.error(`[planfix-mcp] ${response.status}, retrying in ${delay}ms (${attempt}/${MAX_RETRIES})`);
         await new Promise((r) => setTimeout(r, delay));
@@ -98,12 +105,23 @@ export async function planfixRequest(
       }
 
       const errBody = await response.text().catch(() => "");
-      throw new Error(`Planfix HTTP ${response.status}: ${response.statusText} ${errBody}`.trim());
+      const noRetryNote = transientHttp && !retryTransient
+        ? " NOT retried (mutating request — the server may have committed the write; verify before retrying)."
+        : "";
+      throw new Error(`Planfix HTTP ${response.status}: ${response.statusText} ${errBody}`.trim() + noRetryNote);
     } catch (error) {
       clearTimeout(timer);
-      if (error instanceof DOMException && error.name === "AbortError" && attempt < MAX_RETRIES) {
-        console.error(`[planfix-mcp] Timeout, retrying (${attempt}/${MAX_RETRIES})`);
-        continue;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        if (retryTransient && attempt < MAX_RETRIES) {
+          console.error(`[planfix-mcp] Timeout, retrying (${attempt}/${MAX_RETRIES})`);
+          continue;
+        }
+        if (!retryTransient) {
+          throw new Error(
+            `Planfix request timed out after ${TIMEOUT / 1000}s and was NOT retried (mutating request — ` +
+            "the server may have committed the write; verify before retrying).",
+          );
+        }
       }
       throw error;
     }
@@ -111,9 +129,21 @@ export async function planfixRequest(
   throw new Error("Planfix API: all retry attempts exhausted");
 }
 
-/** POST shorthand. */
+/** POST shorthand for READ-shaped endpoints (list/search) — full retry policy. */
 export async function planfixPost(endpoint: string, body: Record<string, unknown> = {}): Promise<unknown> {
   return planfixRequest("POST", endpoint, body);
+}
+
+/**
+ * POST for MUTATING endpoints (create/update/attach/datatag writes).
+ * A separate entry point rather than a flag: the retry policy is then visible
+ * and greppable at every write site, and a forgotten flag cannot silently
+ * reinstate the unsafe default. Policy (audit E1): 429 + code-22 retry
+ * (pre-commit refusals); 5xx and timeouts surface immediately — the tools'
+ * "writes are NEVER retried automatically" promise is literal.
+ */
+export async function planfixMutate(endpoint: string, body: Record<string, unknown> = {}): Promise<unknown> {
+  return planfixRequest("POST", endpoint, body, { retryTransient: false });
 }
 
 /** Multipart uploads get a longer window than the JSON default (large files). */

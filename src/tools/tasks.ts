@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixPost, planfixGet } from "../client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../client.js";
 import { formatTaskList, formatSingleTask, formatCreated, formatUpdated, formatTaskFull, formatTaskSearchList } from "../format.js";
 import { postListPage } from "../paging.js";
 import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
@@ -85,7 +85,7 @@ export async function handleCreateTask(params: z.infer<typeof createTaskSchema>)
   if (params.assigneeId) body.assignees = { users: [{ id: `user:${params.assigneeId}` }] };
   if (params.priority) body.priority = params.priority;
 
-  const result = await planfixPost("task/", body);
+  const result = await planfixMutate("task/", body);
   return formatCreated("Task", result);
 }
 
@@ -107,7 +107,7 @@ export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>)
 
   // Planfix responds with an empty body (200 — applied, 202 — queued);
   // the acknowledgement is built from taskId.
-  await planfixPost(`task/${params.taskId}`, body);
+  await planfixMutate(`task/${params.taskId}`, body);
   return formatUpdated("Task", params.taskId);
 }
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixPost } from "../client.js";
+import { planfixPost, planfixMutate } from "../client.js";
 import { formatCommentList, formatCreated } from "../format.js";
 import { postListPage } from "../paging.js";
 import { assertTaskInTestProject } from "../safemode.js";
@@ -50,7 +50,7 @@ export async function handleAddComment(params: z.infer<typeof addCommentSchema>)
   }
 
   // The path is PLURAL: /task/{id}/comments/. The text field is `description`.
-  const result = await planfixPost(`task/${params.taskId}/comments/`, {
+  const result = await planfixMutate(`task/${params.taskId}/comments/`, {
     description: params.body,
     ...(attached.length > 0 ? { files: attached.map((f) => ({ id: f.id })) } : {}),
   });

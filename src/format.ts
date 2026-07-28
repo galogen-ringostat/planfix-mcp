@@ -2,12 +2,10 @@
 // Every renderer is tolerant: when the response shape is unknown it falls back
 // to raw JSON, so nothing is lost and no structure is invented.
 
-export type Json = Record<string, unknown>;
-
-/** Narrow an unknown to a plain object (exported for src/util.ts re-export — audit D1). */
-export function obj(v: unknown): Json | undefined {
-  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined;
-}
+// Base helpers live in src/util.ts (audit D1/D3); re-exported here for the
+// existing importers of format.js.
+import { obj, findArray, fmtDur, type Json } from "./util.js";
+export { obj, findArray, type Json } from "./util.js";
 
 function val(v: unknown): string | undefined {
   if (typeof v === "string") return v.length ? v : undefined;
@@ -42,15 +40,6 @@ function peopleNames(v: unknown): string | undefined {
 
 export function jsonFallback(resp: unknown): string {
   return JSON.stringify(resp, null, 2);
-}
-
-/** Find the entity array in a response: preferred keys first, then the first array found. */
-export function findArray(resp: unknown, keys: string[]): unknown[] | undefined {
-  const o = obj(resp);
-  if (!o) return undefined;
-  for (const k of keys) if (Array.isArray(o[k])) return o[k] as unknown[];
-  for (const v of Object.values(o)) if (Array.isArray(v)) return v as unknown[];
-  return undefined;
 }
 
 function line(parts: Array<string | undefined>): string {
@@ -438,11 +427,11 @@ function cfValue(e: Json, fieldId: number): { value?: unknown; str?: string } {
   return {};
 }
 
+// Compact form via the shared fmtDur — "2h", "2h 30m", "45m"; zero minutes
+// omitted (audit D3: unified with get_time_report/add_estimation rendering).
 function durationHM(sec: unknown): string | undefined {
   if (typeof sec !== "number" || sec <= 0) return undefined;
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
+  return fmtDur(Math.round(sec / 60));
 }
 
 /**

@@ -5,11 +5,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost } from "../src/client.js";
+import { planfixPost, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 
 const CYRILLIC = /[а-яА-ЯёЁ]/;
 

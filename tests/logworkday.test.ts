@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../src/client.js", () => ({
   planfixPost: vi.fn(),
   planfixGet: vi.fn(),
+  planfixMutate: vi.fn(),
+  planfixUploadFile: vi.fn(),
 }));
 
-import { planfixPost, planfixGet } from "../src/client.js";
+import { planfixPost, planfixGet, planfixMutate } from "../src/client.js";
 
 const mockPost = vi.mocked(planfixPost);
+const mockMutate = vi.mocked(planfixMutate);
 const mockGet = vi.mocked(planfixGet);
 
 const TEST_PROJECT = 572465;
@@ -28,7 +31,7 @@ const day = (
 
 /** Extract the { from, to } clock range a mocked write call sent. */
 function sentRange(callIndex: number): { from: string; to: string; endpoint: string } {
-  const [endpoint, body] = mockPost.mock.calls[callIndex] as [string, Record<string, unknown>];
+  const [endpoint, body] = mockMutate.mock.calls[callIndex] as [string, Record<string, unknown>];
   const items = (body.items as Array<{ customFieldData: Array<{ field: { id: number }; value: unknown }> }>)[0];
   const time = items.customFieldData.find((f) => f.field.id === 185)!.value as { from: { time: string }; to: { time: string } };
   return { from: time.from.time, to: time.to.time, endpoint };
@@ -51,10 +54,10 @@ describe("log_workday — exclusions are required with no default", () => {
   });
 
   it("[] logs straight through a long interval untouched (no cut-outs)", async () => {
-    mockPost.mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 });
+    mockMutate.mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     const result = await handleLogWorkday(day([entry(10, "12:30", "16:45")], []));
-    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockMutate).toHaveBeenCalledTimes(1);
     expect(sentRange(0)).toMatchObject({ from: "12:30", to: "16:45" });
     expect(result).toContain("Exclusions: none.");
     expect(result).not.toContain("auto-split");
@@ -63,7 +66,7 @@ describe("log_workday — exclusions are required with no default", () => {
 
 describe("log_workday — happy path", () => {
   it("groups by task and chains commentIds: new comment per task, appends after (call order asserted)", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] })
       .mockResolvedValueOnce({ result: "success", keys: [3], commentId: 600 });
@@ -74,7 +77,7 @@ describe("log_workday — happy path", () => {
       entry(10, "11:00", "12:30"),
     ]));
 
-    expect(mockPost.mock.calls.map((c) => c[0])).toEqual([
+    expect(mockMutate.mock.calls.map((c) => c[0])).toEqual([
       "task/10/datatags/",
       "task/10/datatags/500",
       "task/20/datatags/",
@@ -89,13 +92,13 @@ describe("log_workday — happy path", () => {
 
 describe("log_workday — exclusion splitting", () => {
   it("splits a window-spanning interval into two chained entries marked with the label", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     const result = await handleLogWorkday(day([entry(10, "12:30", "16:45")], [LUNCH]));
 
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
     expect(sentRange(0)).toMatchObject({ from: "12:30", to: "14:00", endpoint: "task/10/datatags/" });
     expect(sentRange(1)).toMatchObject({ from: "15:00", to: "16:45", endpoint: "task/10/datatags/500" });
     expect(result).toContain("Exclusions applied: 14:00-15:00 (lunch).");
@@ -105,18 +108,18 @@ describe("log_workday — exclusion splitting", () => {
   });
 
   it("boundary intervals touching a window's edges are legal and not split", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     const result = await handleLogWorkday(day([entry(10, "13:00", "14:00"), entry(10, "15:00", "16:00")], [LUNCH]));
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
     expect(result).not.toContain("auto-split");
     expect(result).toContain("Day total: 2h");
   });
 
   it("multi-window: one interval becomes three segments, each marked with its causing window(s)", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] })
       .mockResolvedValueOnce({ result: "success", keys: [3] });
@@ -125,7 +128,7 @@ describe("log_workday — exclusion splitting", () => {
       [entry(10, "09:00", "13:00")],
       [excl("10:00", "10:30", "standup"), excl("11:30", "12:00", "call")],
     ));
-    expect(mockPost).toHaveBeenCalledTimes(3);
+    expect(mockMutate).toHaveBeenCalledTimes(3);
     expect(sentRange(0)).toMatchObject({ from: "09:00", to: "10:00" });
     expect(sentRange(1)).toMatchObject({ from: "10:30", to: "11:30" });
     expect(sentRange(2)).toMatchObject({ from: "12:00", to: "13:00" });
@@ -136,7 +139,7 @@ describe("log_workday — exclusion splitting", () => {
   });
 
   it("partial window overlap SPLITS (semantics change vs old refusal): head and tail cases", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
@@ -144,7 +147,7 @@ describe("log_workday — exclusion splitting", () => {
       [entry(10, "13:30", "14:30"), entry(10, "14:40", "15:30")],
       [LUNCH],
     ));
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
     expect(sentRange(0)).toMatchObject({ from: "13:30", to: "14:00" });
     expect(sentRange(1)).toMatchObject({ from: "15:00", to: "15:30" });
     expect(result).toContain("13:30-14:00 (auto-split: lunch)");
@@ -152,7 +155,7 @@ describe("log_workday — exclusion splitting", () => {
   });
 
   it("merges overlapping and adjacent windows before splitting", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockResolvedValueOnce({ result: "success", keys: [2] });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
@@ -161,17 +164,17 @@ describe("log_workday — exclusion splitting", () => {
       [entry(10, "11:00", "14:00")],
       [excl("12:00", "12:30", "lunch"), excl("12:15", "13:00", "call"), excl("13:00", "13:30", "break")],
     ));
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
     expect(sentRange(0)).toMatchObject({ from: "11:00", to: "12:00" });
     expect(sentRange(1)).toMatchObject({ from: "13:30", to: "14:00" });
     expect(result).toContain("Exclusions applied: 12:00-13:30 (lunch + call + break).");
   });
 
   it("drops zero-length remainders (interval ending exactly where a window ends)", async () => {
-    mockPost.mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 });
+    mockMutate.mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     const result = await handleLogWorkday(day([entry(10, "12:00", "15:00")], [LUNCH]));
-    expect(mockPost).toHaveBeenCalledTimes(1); // only 12:00-14:00; the post-window remainder is empty
+    expect(mockMutate).toHaveBeenCalledTimes(1); // only 12:00-14:00; the post-window remainder is empty
     expect(sentRange(0)).toMatchObject({ from: "12:00", to: "14:00" });
     expect(result).toContain("Day total: 2h");
   });
@@ -182,7 +185,7 @@ describe("log_workday — exclusion splitting", () => {
       .rejects.toThrow(/entry 2 \(task 10, 14:10-14:50\): lies entirely inside exclusion window\(s\) 14:00-15:00 \(lunch\)/);
     // exactly matching the window is also inside
     await expect(handleLogWorkday(day([entry(10, "14:00", "15:00")], [LUNCH]))).rejects.toThrow(/entirely inside exclusion window/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
     expect(mockGet).not.toHaveBeenCalled();
   });
 
@@ -190,7 +193,7 @@ describe("log_workday — exclusion splitting", () => {
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     await expect(handleLogWorkday(day([entry(10, "09:00", "10:00")], [excl("15:00", "14:00", "backwards")])))
       .rejects.toThrow(/exclusion 1 \(15:00-14:00\): timeFrom must be earlier than timeTo/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 });
 
@@ -199,14 +202,14 @@ describe("log_workday — validation refusals (whole day, nothing written)", () 
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     await expect(handleLogWorkday(day([entry(10, "11:00", "10:00")])))
       .rejects.toThrow(/entry 1 \(task 10, 11:00-10:00\): timeFrom must be earlier than timeTo/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("rejects overlapping intervals across tasks", async () => {
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     await expect(handleLogWorkday(day([entry(10, "09:00", "11:00"), entry(20, "10:30", "12:00")])))
       .rejects.toThrow(/entries 1 and 2 overlap/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("rejects post-split collisions (split tail vs another entry)", async () => {
@@ -214,7 +217,7 @@ describe("log_workday — validation refusals (whole day, nothing written)", () 
     // 12:00-16:00 splits around lunch to 12:00-14:00 + 15:00-16:00; the tail collides with 15:30-17:00
     await expect(handleLogWorkday(day([entry(10, "12:00", "16:00"), entry(20, "15:30", "17:00")], [LUNCH])))
       .rejects.toThrow(/overlap after exclusion-splitting: 15:00-16:00 \(auto-split: lunch\) vs 15:30-17:00/);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("lists ALL violations in one refusal, in English", async () => {
@@ -238,7 +241,7 @@ describe("log_workday — validate_only", () => {
       [LUNCH],
       { validate_only: true },
     ));
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
     expect(mockGet).not.toHaveBeenCalled();
     expect(result).toContain("NOTHING written (validate_only)");
     expect(result).toContain("Exclusions applied: 14:00-15:00 (lunch).");
@@ -254,7 +257,7 @@ describe("log_workday — validate_only", () => {
 
 describe("log_workday — partial failure", () => {
   it("stops at the first write error, reports written vs not-written, no retry, no rollback claim", async () => {
-    mockPost
+    mockMutate
       .mockResolvedValueOnce({ result: "success", keys: [1], commentId: 500 })
       .mockRejectedValueOnce(new Error("Planfix HTTP 502: Bad Gateway"));
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
@@ -264,7 +267,7 @@ describe("log_workday — partial failure", () => {
       entry(20, "15:00", "16:00"),
     ]));
 
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    expect(mockMutate).toHaveBeenCalledTimes(2);
     expect(result).toContain("PARTIALLY FAILED");
     expect(result).toContain("Written (1)");
     expect(result).toContain("- task 10: 09:00-10:00 → key 1, commentId 500");
@@ -289,17 +292,17 @@ describe("log_workday — safe mode", () => {
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     await expect(handleLogWorkday(day([entry(10, "09:00", "10:00"), entry(20, "10:00", "11:00")])))
       .rejects.toThrow(/log_workday refused.*task 20.*111.*572465/s);
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("ON: all tasks inside MCP-Test → writes proceed", async () => {
     vi.stubEnv("PLANFIX_SAFE_MODE", "1");
     vi.stubEnv("PLANFIX_TEST_PROJECT_ID", String(TEST_PROJECT));
     mockGet.mockResolvedValue({ task: { id: 10, project: { id: TEST_PROJECT } } });
-    mockPost.mockResolvedValue({ result: "success", keys: [1], commentId: 500 });
+    mockMutate.mockResolvedValue({ result: "success", keys: [1], commentId: 500 });
     const { handleLogWorkday } = await import("../src/tools/timeentries.js");
     const result = await handleLogWorkday(day([entry(10, "09:00", "10:00")]));
-    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockMutate).toHaveBeenCalledTimes(1);
     expect(result).toContain("✓ Workday");
   });
 
@@ -310,6 +313,6 @@ describe("log_workday — safe mode", () => {
     await expect(handleLogWorkday(day([entry(10, "09:00", "10:00")])))
       .rejects.toThrow(/PLANFIX_TEST_PROJECT_ID is unset or not a positive integer/);
     expect(mockGet).not.toHaveBeenCalled();
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 });

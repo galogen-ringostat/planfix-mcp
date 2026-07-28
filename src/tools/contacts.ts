@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { planfixPost, planfixGet } from "../client.js";
+import { planfixGet, planfixMutate } from "../client.js";
 import { formatContactList, formatSingleContact, formatCreated, formatUpdated } from "../format.js";
 import { postListPage } from "../paging.js";
 import { refuseUnscopedMutation } from "../safemode.js";
@@ -55,7 +55,7 @@ export async function handleCreateContact(params: z.infer<typeof createContactSc
   if (params.companyId) body.company = { id: params.companyId };
   if (params.isCompany !== undefined) body.isCompany = params.isCompany;
 
-  const result = await planfixPost("contact/", body);
+  const result = await planfixMutate("contact/", body);
   return formatCreated("Contact", result);
 }
 
@@ -73,6 +73,6 @@ export async function handleUpdateContact(params: z.infer<typeof updateContactSc
   if (params.email) body.email = params.email;
   if (params.phone) body.phones = [{ number: params.phone }];
 
-  await planfixPost(`contact/${params.contactId}`, body);
+  await planfixMutate(`contact/${params.contactId}`, body);
   return formatUpdated("Contact", params.contactId);
 }
