@@ -34,7 +34,7 @@ describe("get_task_full", () => {
     expect(mockPost).toHaveBeenCalledWith("task/5/comments/list", {
       offset: 0,
       pageSize: 31,
-      fields: "id,dateTime,owner,description",
+      fields: "id,dateTime,owner,description,files",
     });
     expect(result).toContain("#5");
     expect(result).toContain("Card");

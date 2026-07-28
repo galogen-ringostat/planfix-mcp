@@ -13,7 +13,7 @@ const READ_ONLY_TOOLS = [
 // Read-only but NOT idempotent-annotated: output shifts as live data moves.
 const READ_ONLY_LIVE_TOOLS = ["get_project_overview", "get_time_report"];
 
-const ADDITIVE_WRITE_TOOLS = ["create_task", "add_comment", "create_contact", "upload_file_from_url", "add_time_entry", "log_workday", "add_checklist_item", "add_estimation"];
+const ADDITIVE_WRITE_TOOLS = ["create_task", "add_comment", "create_contact", "upload_file_from_url", "add_time_entry", "log_workday", "add_checklist_item", "add_estimation", "attach_file_to_task"];
 const IDEMPOTENT_UPDATE_TOOLS = ["update_task", "update_contact", "set_checklist_item_done", "update_checklist_item_name", "set_task_custom_field"];
 
 type ToolInfo = {
@@ -34,7 +34,7 @@ describe("createPlanfixServer (tools/list over an in-memory transport)", () => {
     tools = (await client.listTools()).tools as unknown as ToolInfo[];
   });
 
-  it("exposes exactly the 35 expected tools", () => {
+  it("exposes exactly the 36 expected tools", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [...READ_ONLY_TOOLS, ...READ_ONLY_LIVE_TOOLS, ...ADDITIVE_WRITE_TOOLS, ...IDEMPOTENT_UPDATE_TOOLS].sort(),

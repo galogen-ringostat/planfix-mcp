@@ -112,7 +112,7 @@ export async function handleUpdateTask(params: z.infer<typeof updateTaskSchema>)
 
 // ── get_task_full — task + comments in one call (read-only) ──────────────────
 
-const COMMENT_FIELDS = "id,dateTime,owner,description";
+const COMMENT_FIELDS = "id,dateTime,owner,description,files";
 const DEFAULT_COMMENTS_LIMIT = 30;
 
 export const getTaskFullSchema = z.object({

@@ -103,6 +103,19 @@ Rejected:
 - A generic file-download tool returning file CONTENTS through MCP — token hazard;
   `get_file`'s `downloadUrl` covers agent-side inspection.
 
+## Design review outcome (2026-07-28): APPROVED as proposed — IMPLEMENTED
+
+Open questions resolved by review: the 50 MB tool-side cap approved (named a tool
+limit, not an API fact, in the refusal); the code-41 URL guard documented as-is.
+Shipped (`src/client.ts` `planfixUploadFile`, `src/tools/files.ts`
+`uploadLocalFile` + `attach_file_to_task`, `src/tools/comments.ts` `add_comment`
+`files` param, read-side `files`/`downloadUrl` rendering with KB sizes; 36 tools).
+Unit tests: `tests/attachments.test.ts` + `tests/upload-client.test.ts`
+(fetch-level multipart shape: field `file`, Cyrillic basename, no manual
+Content-Type, single attempt). Live read-back through the new renderers verified
+against this spike's artifacts (file 1729843 metadata incl. expiring downloadUrl;
+task 576633's comments with file segments).
+
 ## Probe-artifact inventory (Layer 3 rule 5 — leave auditable, batch-clean from UI)
 
 - Task `576633` "[MCP-TEST] P12 spike: file attach probe" in project 572465.

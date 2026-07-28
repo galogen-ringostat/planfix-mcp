@@ -13,7 +13,7 @@ import { listUsersSchema, handleListUsers, getUserSchema, handleGetUser } from "
 import { listDirectoriesSchema, handleListDirectories, listDirectoryEntriesSchema, handleListDirectoryEntries } from "./tools/directories.js";
 import { listCustomFieldsSchema, handleListCustomFields, setTaskCustomFieldSchema, handleSetTaskCustomField, addEstimationSchema, handleAddEstimation } from "./tools/customfields.js";
 import { listDatatagsSchema, handleListDatatags } from "./tools/datatags.js";
-import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile } from "./tools/files.js";
+import { uploadFileFromUrlSchema, handleUploadFileFromUrl, getFileSchema, handleGetFile, attachFileToTaskSchema, handleAttachFileToTask } from "./tools/files.js";
 import { addTimeEntrySchema, handleAddTimeEntry, getTaskTimeEntriesSchema, handleGetTaskTimeEntries, logWorkdaySchema, handleLogWorkday, getTimeReportSchema, handleGetTimeReport } from "./tools/timeentries.js";
 import { getTaskChecklistSchema, handleGetTaskChecklist, addChecklistItemSchema, handleAddChecklistItem, setChecklistItemDoneSchema, handleSetChecklistItemDone, updateChecklistItemNameSchema, handleUpdateChecklistItemName } from "./tools/checklists.js";
 import { skillMyTasks, skillCreateTask } from "./skills.js";
@@ -191,9 +191,10 @@ export function createPlanfixServer(): McpServer {
     "add_comment",
     {
       description:
-        "Add a comment to a task. " +
+        "Add a comment to a task, optionally with file attachments. " +
+        "files takes absolute local paths (uploaded from the machine running this server, max 50 MB each) and/or existing Planfix file IDs, max 10. " +
         "Do NOT use it for time logging — that is add_time_entry. " +
-        'Input example: { taskId: 123, body: "Status update: done." }.',
+        'Input example: { taskId: 123, body: "Report attached.", files: ["W:\\\\docs\\\\report.docx", 1729843] }.',
       inputSchema: addCommentSchema.shape,
       annotations: ADDITIVE_WRITE,
     },
@@ -338,7 +339,8 @@ export function createPlanfixServer(): McpServer {
     "upload_file_from_url",
     {
       description:
-        "Upload a file to Planfix from a direct URL (no multipart upload from disk). " +
+        "Upload a file to Planfix from a direct URL WITHOUT attaching it to anything (target-less; refused entirely in safe mode). " +
+        "Prefer attach_file_to_task or add_comment with files — they upload AND attach in one call. " +
         'Input example: { url: "https://example.com/report.pdf", name: "report.pdf" }.',
       inputSchema: uploadFileFromUrlSchema.shape,
       annotations: ADDITIVE_WRITE,
@@ -347,10 +349,25 @@ export function createPlanfixServer(): McpServer {
   );
 
   server.registerTool(
+    "attach_file_to_task",
+    {
+      description:
+        "Attach a file to a task's CARD, uploading it first when needed. Exactly ONE source: " +
+        "localPath (absolute path on the machine running this server, max 50 MB), url (Planfix downloads it server-side; " +
+        "some URLs are refused with code 41 \"Unsafe url\"), or fileId (an existing Planfix file — one file can attach to several targets). " +
+        "To attach files to a COMMENT use add_comment with files. " +
+        'Input example: { taskId: 123, localPath: "W:\\\\docs\\\\report.docx" }.',
+      inputSchema: attachFileToTaskSchema.shape,
+      annotations: ADDITIVE_WRITE,
+    },
+    async (params) => text(await handleAttachFileToTask(params)),
+  );
+
+  server.registerTool(
     "get_file",
     {
       description:
-        "Get a file's metadata by ID (name, size). " +
+        "Get a file's metadata by ID: name, size (in KB), and a downloadUrl — a presigned link that EXPIRES; fetch it fresh each time, never store it. " +
         "Input example: { fileId: 9 }.",
       inputSchema: getFileSchema.shape,
       annotations: READ_ONLY,
@@ -600,7 +617,7 @@ async function main(): Promise<void> {
     const server = createPlanfixServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error(`[planfix-mcp] v${VERSION} started. 35 tools, 2 skills. Stdio.`);
+    console.error(`[planfix-mcp] v${VERSION} started. 36 tools, 2 skills. Stdio.`);
   }
 }
 

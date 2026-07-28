@@ -116,6 +116,50 @@ export async function planfixPost(endpoint: string, body: Record<string, unknown
   return planfixRequest("POST", endpoint, body);
 }
 
+/** Multipart uploads get a longer window than the JSON default (large files). */
+const UPLOAD_TIMEOUT = 120_000;
+
+/**
+ * Multipart file upload: `POST /file/` with the single binary form field `file`
+ * (shape verified live, docs/spikes/file-attachments.md). Single attempt — an
+ * upload is not safely retryable without risking a duplicate file. File
+ * contents are never logged.
+ */
+export async function planfixUploadFile(filename: string, data: Uint8Array): Promise<unknown> {
+  const auth = getAuthHeader();
+  const baseUrl = getBaseUrl();
+  const form = new FormData();
+  form.append("file", new Blob([data as BlobPart]), filename);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT);
+  try {
+    // No Content-Type header: fetch sets the multipart boundary itself.
+    const response = await fetch(`${baseUrl}/file/`, {
+      method: "POST",
+      headers: { Authorization: auth },
+      body: form,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const parsed = text ? JSON.parse(text) : {};
+    if (!response.ok) {
+      throw new Error(`Planfix HTTP ${response.status}: ${response.statusText} ${text}`.trim());
+    }
+    if (isFailEnvelope(parsed)) {
+      throw new Error(`Planfix API error ${parsed.code ?? "?"}: ${parsed.error ?? "unknown error"}`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`File upload timed out after ${UPLOAD_TIMEOUT / 1000}s: ${filename}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** GET shorthand with optional query parameters (e.g. `{ fields: "id,name" }`). */
 export async function planfixGet(
   endpoint: string,

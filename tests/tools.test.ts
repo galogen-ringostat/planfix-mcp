@@ -228,11 +228,11 @@ describe("files tools", () => {
     expect(result).toContain("ID: 321");
   });
 
-  it("handleGetFile calls GET file/:id", async () => {
+  it("handleGetFile calls GET file/:id with the downloadUrl-bearing default fields", async () => {
     mockGet.mockResolvedValue({ file: { id: 9, name: "doc.pdf" } });
     const { handleGetFile } = await import("../src/tools/files.js");
     const result = await handleGetFile({ fileId: 9 });
-    expect(mockGet).toHaveBeenCalledWith("file/9");
+    expect(mockGet).toHaveBeenCalledWith("file/9", { fields: "id,name,size,downloadUrl,link" });
     expect(result).toContain("doc.pdf");
   });
 });

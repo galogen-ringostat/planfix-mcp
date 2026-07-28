@@ -333,12 +333,24 @@ export function formatSingleUser(resp: unknown): string {
 
 // ── Comments ────────────────────────────────────────────────────────────────────
 
+/** Attached files as `file: name (#id, N KB)` segments — the API's size unit is KB. */
+function fileSegments(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return (v as unknown[]).map(obj).flatMap((f) => {
+    if (!f) return [];
+    const name = val(f.name) ?? "?";
+    const size = typeof f.size === "number" ? `, ${f.size} KB` : "";
+    return [`file: ${name} (#${val(f.id) ?? "?"}${size})`];
+  });
+}
+
 function commentRow(c: Json, concise = false): string {
   return line([
     `#${val(c.id) ?? "?"}`,
     ref(c.owner) && `author: ${ref(c.owner)}`,
     dateStr(c.dateTime) && dateStr(c.dateTime),
     concise ? undefined : val(c.description),
+    ...(concise ? [] : fileSegments(c.files)),
   ]);
 }
 
@@ -524,7 +536,13 @@ export function formatDatatagList(resp: unknown, pageSize: number, offset: numbe
 export function formatFile(resp: unknown): string {
   const f = obj(obj(resp)?.file) ?? obj(resp);
   if (!f) return jsonFallback(resp);
-  return line([`#${val(f.id) ?? "?"}`, val(f.name), val(f.size) && `size: ${val(f.size)}`]);
+  return line([
+    `#${val(f.id) ?? "?"}`,
+    val(f.name),
+    val(f.size) && `size: ${val(f.size)} KB`,
+    val(f.downloadUrl) && `downloadUrl (expires, fetch fresh): ${val(f.downloadUrl)}`,
+    val(f.link) && `link: ${val(f.link)}`,
+  ]);
 }
 
 // ── Write acknowledgements ────────────────────────────────────────────────────────
