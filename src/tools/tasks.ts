@@ -71,9 +71,14 @@ export const createTaskSchema = z.object({
   description: z.string().optional().describe("Task description"),
   projectId: z.number().optional().describe("Project ID"),
   assigneeId: z.number().optional().describe("Assignee (employee) ID. Find it with the list_users tool"),
-  // NOTE: priority is a string, but the exact allowed values are not verified
-  // against the live API. Passed through as-is.
-  priority: z.string().optional().describe("Task priority (string). Allowed values not verified against the live API"),
+  // Verified live 2026-07-28 (audit C8, MCP-Test tasks 578303/578304): "Urgent"
+  // round-trips, "NotUrgent" is the default, and unknown values ("High") are
+  // SILENTLY ignored by the API — the task lands NotUrgent with a success envelope.
+  priority: z.string().optional().describe(
+    "Task priority — Planfix REST enum, verified live: \"Urgent\" round-trips; \"NotUrgent\" is the default; " +
+    "unknown values (e.g. \"High\") are SILENTLY ignored and the task lands NotUrgent. " +
+    "NOT the RevOps custom field 21752 \"Priority\" (Low/Normal/High/Critical) — set that one with set_task_custom_field",
+  ),
 });
 
 export async function handleCreateTask(params: z.infer<typeof createTaskSchema>): Promise<string> {

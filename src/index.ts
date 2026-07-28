@@ -82,8 +82,8 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Update an existing task: name, description, status, and/or assignee. Only the provided fields change. " +
-        "Status IDs come from list_directory_entries on the relevant status set. " +
-        "Input example: { taskId: 123, status: 2 }.",
+        "Status IDs appear in task reads as \"status: Name (#id)\" (get_task/search_tasks) — use that id here (verified live: status 6 = Ready for review). " +
+        "Input example: { taskId: 123, status: 6 }.",
       inputSchema: updateTaskSchema.shape,
       annotations: IDEMPOTENT_UPDATE,
     },
