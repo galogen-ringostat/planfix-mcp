@@ -1,5 +1,7 @@
 # Changelog
 
+> **FROZEN at the fork point (upstream v1.2.0).** This file is an upstream artifact and is not updated in the Ringostat fork — fork history lives in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 Все значимые изменения проекта документируются в этом файле.
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект следует [семантическому версионированию](https://semver.org/lang/ru/).

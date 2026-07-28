@@ -1,210 +1,66 @@
-> 📦 Part of **[WWmcp — Emerging Markets MCP](https://github.com/theYahia/WWmcp)** — 114 MCP servers for non-Western APIs (Brazil/MENA/Gulf/SE Asia/Africa/CIS).
+# planfix-mcp — Ringostat fork
 
-# @theyahia/planfix-mcp
+MCP server (stdio) for the [Planfix REST API v2](https://help.planfix.com/restapidocs/). **36 tools, 2 prompt skills.** TypeScript + `@modelcontextprotocol/sdk` + Zod; all HTTP mocked in tests.
 
-MCP-сервер для Planfix API — задачи, проекты, контакты, комментарии, сотрудники, файлы. **20 инструментов, 2 навыка.**
+This is a private working fork of [theYahia/planfix-mcp](https://github.com/theYahia/planfix-mcp) (MIT), grown friction-first for Ringostat's RevOps workflows. It is **not published to npm** (`private: true`); the upstream package `@theyahia/planfix-mcp` is a different, smaller server. Development history lives in [`docs/ROADMAP.md`](docs/ROADMAP.md); API behavior evidence in [`docs/spikes/`](docs/spikes/).
 
-[![npm](https://img.shields.io/npm/v/@theyahia/planfix-mcp)](https://www.npmjs.com/package/@theyahia/planfix-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-Часть серии [Russian API MCP](https://github.com/theYahia/russian-mcp) (50 серверов) by [@theYahia](https://github.com/theYahia).
-
-## Установка
-
-### Claude Desktop
-
-```json
-{
-  "mcpServers": {
-    "planfix": {
-      "command": "npx",
-      "args": ["-y", "@theyahia/planfix-mcp"],
-      "env": {
-        "PLANFIX_API_KEY": "your-api-key",
-        "PLANFIX_ACCOUNT": "your-subdomain"
-      }
-    }
-  }
-}
-```
-
-### Claude Code
+## Install (local)
 
 ```bash
-claude mcp add planfix \
-  -e PLANFIX_API_KEY=your-api-key \
-  -e PLANFIX_ACCOUNT=your-subdomain \
-  -- npx -y @theyahia/planfix-mcp
-```
-
-### Streamable HTTP (удалённый сервер)
-
-```bash
-PLANFIX_API_KEY=your-key PLANFIX_ACCOUNT=your-sub npx @theyahia/planfix-mcp --http 8080
-```
-
-Эндпоинт: `http://localhost:8080/mcp`
-Health check: `http://localhost:8080/health`
-
-### Smithery
-
-[![smithery badge](https://smithery.ai/badge/@theyahia/planfix-mcp)](https://smithery.ai/server/@theyahia/planfix-mcp)
-
-```bash
-npx -y @smithery/cli install @theyahia/planfix-mcp --client claude
-```
-
-### VS Code / Cursor
-
-```json
-{
-  "servers": {
-    "planfix": {
-      "command": "npx",
-      "args": ["-y", "@theyahia/planfix-mcp"],
-      "env": {
-        "PLANFIX_API_KEY": "your-api-key",
-        "PLANFIX_ACCOUNT": "your-subdomain"
-      }
-    }
-  }
-}
-```
-
-### Windsurf
-
-```json
-{
-  "mcpServers": {
-    "planfix": {
-      "command": "npx",
-      "args": ["-y", "@theyahia/planfix-mcp"],
-      "env": {
-        "PLANFIX_API_KEY": "your-api-key",
-        "PLANFIX_ACCOUNT": "your-subdomain"
-      }
-    }
-  }
-}
-```
-
-## Авторизация
-
-| Переменная | Обязательная | Описание |
-|-----------|-------------|----------|
-| `PLANFIX_API_KEY` | Да | API-ключ. Создаётся в Управлении аккаунтом → Доступ к API → REST API |
-| `PLANFIX_ACCOUNT` | **Да** | Субдомен (например `mycompany` из `mycompany.planfix.com`). Обязателен — общего хоста у REST API нет |
-| `PLANFIX_HOST` | Нет | Хост для региональных инсталляций (по умолчанию `planfix.com`; например `planfix.ru`) |
-| `PLANFIX_TOKEN` | Нет | Устаревший вариант, используйте `PLANFIX_API_KEY` |
-
-Base URL: `https://{PLANFIX_ACCOUNT}.{PLANFIX_HOST}/rest/`. Авторизация — заголовок `Authorization: Bearer <key>`.
-
-## Инструменты (20)
-
-### Задачи
-
-| Инструмент | Описание |
-|------------|----------|
-| `get_tasks` | Список задач (пагинация, `fields`, `filterId`, ad-hoc `filters`) |
-| `get_task` | Одна задача по ID |
-| `create_task` | Создание задачи (можно указать проект, исполнителя — см. `list_users`) |
-| `update_task` | Обновление задачи (название, описание, статус, исполнитель) |
-
-### Контакты
-
-| Инструмент | Описание |
-|------------|----------|
-| `get_contacts` | Список контактов |
-| `get_contact` | Один контакт по ID |
-| `create_contact` | Создать контакт или компанию |
-| `update_contact` | Обновить контакт (имя, email, телефон) |
-
-### Проекты, комментарии
-
-| Инструмент | Описание |
-|------------|----------|
-| `get_projects` | Список проектов |
-| `get_project` | Один проект по ID |
-| `get_comments` | Комментарии к задаче |
-| `add_comment` | Добавить комментарий к задаче |
-
-### Сотрудники, справочники, поля, файлы
-
-| Инструмент | Описание |
-|------------|----------|
-| `list_users` | Список сотрудников — **используйте для поиска ID исполнителя по имени** |
-| `get_user` | Один сотрудник по ID |
-| `list_directories` | Справочники (наборы статусов задач хранятся как справочники) |
-| `list_directory_entries` | Записи справочника по его ID (например, варианты статусов) |
-| `list_custom_fields` | Кастомные поля по типу объекта (`task`/`contact`/`project`/`user`/`main`) |
-| `list_datatags` | Дата-теги |
-| `upload_file_from_url` | Загрузить файл по прямой ссылке |
-| `get_file` | Метаданные файла по ID |
-
-## Навыки (Skills / Prompts) (2)
-
-| Навык | Описание |
-|-------|----------|
-| `skill-my-tasks` | "Мои задачи на сегодня" — показывает задачи с дедлайном сегодня или просроченные |
-| `skill-create-task` | "Создай задачу в проекте" — пошаговый помощник для создания задачи с выбором проекта |
-
-## Статусы задач
-
-Отдельного эндпоинта `/taskstatus/list` в Planfix нет. Системные статусы — фиксированный
-набор констант: `DRAFT, ACTIVE, ACCEPTED, COMPLETED, DELAYED, REJECTED, DONE, CANCELED`.
-Кастомные наборы статусов настраиваются как справочники — перечислить их можно через
-`list_directories` → `list_directory_entries`.
-
-## Примеры
-
-```
-Покажи мои задачи в Planfix
-Найди сотрудника Иванов и создай задачу "Подготовить отчёт" в проекте 123 с ним как исполнителем
-Список контактов
-Покажи проекты
-Добавь комментарий к задаче 456: "Готово"
-```
-
-## 🚀 Demo prompts
-
-> **Use case (RU):** "Создай задачу 'Звонок клиенту' в Planfix, привяжи к сделке #12345"
-
-🤖 **Pairs well with:**
-- [`@theyahia/kaiten-mcp`](https://github.com/theYahia/kaiten-mcp)
-- [`@theyahia/megaplan-mcp`](https://github.com/theYahia/megaplan-mcp)
-- [`@theyahia/yandex-tracker-mcp`](https://github.com/theYahia/yandex-tracker-mcp)
-
-## Ограничения
-
-- **`priority` в `create_task`** передаётся как строка «как есть» — точные допустимые
-  значения не верифицированы против live API.
-- Прямая загрузка файлов с диска (multipart `POST /file/`) и эндпоинты
-  time-tracking/actions не реализованы (REST-контракт не подтверждён). Доступна загрузка
-  файла по ссылке (`upload_file_from_url`).
-
-## Разработка
-
-```bash
+git clone https://github.com/galogen-ringostat/planfix-mcp.git
+cd planfix-mcp
 npm install
-npm test        # Vitest (32 теста)
-npm run dev     # tsx watch
-npm run build   # TypeScript compile
+npm run build   # → dist/
 ```
 
-## Planfix — реферальная программа
+MCP config (Claude Code / Claude Desktop — placeholders, never commit real values):
 
-**35% бессрочный recurring** от всех платежей приведённых клиентов.
+```json
+{
+  "mcpServers": {
+    "planfix": {
+      "command": "node",
+      "args": ["<path-to-repo>/dist/index.js"],
+      "env": {
+        "PLANFIX_ACCOUNT": "<your-account-subdomain>",
+        "PLANFIX_API_KEY": "<your-rest-api-key>"
+      }
+    }
+  }
+}
+```
 
-- Без сертификации — просто зарегистрируйтесь в партнёрской программе
-- Recurring: получаете 35% каждый месяц, пока клиент платит
-- Бессрочно: нет ограничений по времени выплат
+Optional env: `PLANFIX_HOST` (host suffix, default `planfix.com`); `PLANFIX_SAFE_MODE=1` + `PLANFIX_TEST_PROJECT_ID=<id>` confine every mutating tool to the dedicated test project — see [`docs/TESTING.md`](docs/TESTING.md) (three-layer protocol; there is no test Planfix instance, so the safe-mode guard is deterministic code, not discipline).
 
-Подробнее: [planfix.com/partners](https://planfix.com/ru/partner-program/)
+## Tools (36)
 
-## Лицензия
+**Tasks** — `get_tasks`, `get_task`, `get_task_full` (task + comments in one call), `search_tasks` (name/assignee/status/project/updated-since/List-custom-field filters), `get_task_children`, `create_task`, `update_task`.
 
-MIT
+**Projects** — `get_projects`, `get_project`, `search_projects` (name-contains / active-only / group / owner), `get_project_overview` (status label + task aggregates + recency signal).
 
----
+**Comments & files** — `get_comments`, `add_comment` (optional file attachments: local paths and/or file ids), `attach_file_to_task` (localPath | url | fileId → task card), `get_file` (metadata + expiring downloadUrl), `upload_file_from_url` (target-less; prefer the two tools above).
 
-⭐ **Star if you build with Planfix** — helps other devs find this server.
+**Time tracking** — `add_time_entry`, `get_task_time_entries`, `log_workday` (validated day composite with required exclusions), `get_time_report` (cross-task per-person totals + unlogged days).
+
+**Custom fields & planning** — `list_custom_fields`, `set_task_custom_field` (enum-validated, read-back-verified), `add_estimation` (workday-layout chunking, APPEND semantics).
+
+**Checklists** — `get_task_checklist`, `add_checklist_item`, `set_checklist_item_done`, `update_checklist_item_name` (the API has no item delete).
+
+**Directory data** — `list_users`, `get_user`, `get_contacts`, `get_contact`, `create_contact`, `update_contact`, `list_directories`, `list_directory_entries`, `list_datatags`.
+
+Conventions: read tools carry `readOnlyHint`; list tools return exact `has_more` + next-offset hints; capped scans report `N+` lower bounds explicitly; all server-authored text is English (data passes through in its source language); errors are actionable (what was wrong + which tool fixes it). Mutating calls never retry 5xx/timeouts (double-write protection); rate-limit retries stay.
+
+## Development
+
+```bash
+npm run dev     # run from source (tsx, stdio)
+npm test        # vitest, all HTTP mocked
+npm run build   # required after every change — the live config runs dist/
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+See [`CLAUDE.md`](CLAUDE.md) for working conventions and [`docs/audit-2026-07.md`](docs/audit-2026-07.md) for the latest codebase audit.
+
+## License & attribution
+
+MIT (see [LICENSE](LICENSE)). Forked from [theYahia/planfix-mcp](https://github.com/theYahia/planfix-mcp) by [@theYahia](https://github.com/theYahia); upstream attribution and license kept intact. The upstream `CHANGELOG.md` is frozen at the fork point — fork history is tracked in [`docs/ROADMAP.md`](docs/ROADMAP.md).

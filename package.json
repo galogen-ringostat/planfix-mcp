@@ -1,7 +1,8 @@
 {
-  "name": "@theyahia/planfix-mcp",
+  "name": "planfix-mcp-ringostat",
   "version": "1.2.0",
-  "description": "MCP server for Planfix — tasks, contacts, project management (Russia)",
+  "private": true,
+  "description": "MCP server for the Planfix REST API v2 — tasks, projects, comments, time tracking, custom fields, files (Ringostat fork of theYahia/planfix-mcp)",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -32,17 +33,12 @@
     "typescript": "^5.7.0",
     "vitest": "^3.1.1"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "mcpName": "io.github.theYahia/planfix-mcp",
   "keywords": [
     "mcp",
     "mcp-server",
     "model-context-protocol",
     "claude",
     "ai",
-    "russian-api",
     "planfix",
     "project-management",
     "crm",
@@ -54,8 +50,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/theYahia/planfix-mcp.git"
+    "url": "https://github.com/galogen-ringostat/planfix-mcp.git"
   },
-  "homepage": "https://github.com/theYahia/planfix-mcp#readme",
-  "author": "theYahia (https://github.com/theYahia)"
+  "homepage": "https://github.com/galogen-ringostat/planfix-mcp#readme",
+  "author": "Galogen (Ringostat); upstream: theYahia (https://github.com/theYahia)"
 }
