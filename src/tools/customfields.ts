@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planfixGet, planfixPost } from "../client.js";
 import { formatCustomFieldList, findArray, jsonFallback } from "../format.js";
+import { HHMM, toMin, toHHMM, fmtDur, obj, findCustomFieldEntry, type Json } from "../util.js";
 import { assertTaskInTestProject } from "../safemode.js";
 
 // Custom fields are listed per object type: GET /customfield/{objectType}.
@@ -43,15 +44,11 @@ export const setTaskCustomFieldSchema = z.object({
   value: z.string().min(1).describe("The option's exact label, e.g. \"Sprint 10 - 2026\" — validated against the field's allowed values before writing"),
 });
 
-type Obj = Record<string, unknown>;
-const asObj = (v: unknown): Obj | undefined =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined;
-
 /** Look a task custom field up by id (the GET endpoint cannot filter by id). */
-async function lookupTaskField(fieldId: number): Promise<Obj | undefined> {
+async function lookupTaskField(fieldId: number): Promise<Json | undefined> {
   const resp = await planfixGet("customfield/task", { fields: "id,name,type,enumValues" });
   const all = findArray(resp, ["customFields", "customfields", "fields"]) ?? [];
-  return all.map(asObj).find((f) => f?.id === fieldId);
+  return all.map(obj).find((f) => f?.id === fieldId);
 }
 
 export async function handleSetTaskCustomField(params: z.infer<typeof setTaskCustomFieldSchema>): Promise<string> {
@@ -93,9 +90,7 @@ export async function handleSetTaskCustomField(params: z.infer<typeof setTaskCus
   // Read-back verification: a write to a field not attached to the task's
   // template returns success and stores nothing — surface that as an error.
   const readBack = await planfixGet(`task/${params.taskId}`, { fields: `id,${params.fieldId}` });
-  const stored = (findArray(asObj(asObj(readBack)?.task) ?? {}, ["customFieldData"]) ?? [])
-    .map(asObj)
-    .find((e) => asObj(e?.field)?.id === params.fieldId);
+  const stored = findCustomFieldEntry(readBack, params.fieldId);
   const storedValue = stored?.stringValue ?? stored?.value;
   if (storedValue !== params.value) {
     throw new Error(
@@ -122,7 +117,6 @@ const EST_FIELD_TIME = 189;  // "Time" — clock range { from, to }; ONLY this s
 //   - from 00:00 to "24:00": the working 24h chunk (key 127903; summary +24h verified)
 const ESTIMATION_SUMMARY_FIELD_ID = 22453;
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const FULL_DAY_MIN = 1440;
 
 const workdayExclusionSchema = z.object({
@@ -151,19 +145,6 @@ export const addEstimationSchema = z.object({
 });
 
 type Chunk = { from: number; to: number };
-
-const toMin = (hhmm: string): number => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-};
-/** 1440 renders as "24:00" — the only place a non-HH:MM boundary is valid (see EST_FIELD_TIME note). */
-const toHHMM = (min: number): string =>
-  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-const fmtDur = (min: number): string => {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
-};
 
 /**
  * Deterministic all-or-nothing chunk planning. Returns the full entry plan or
@@ -292,9 +273,7 @@ export async function handleAddEstimation(params: z.infer<typeof addEstimationSc
 
   // Read back the summary so an unintended double-add is immediately visible.
   const readBack = await planfixGet(`task/${params.taskId}`, { fields: `id,${ESTIMATION_SUMMARY_FIELD_ID}` });
-  const summary = (findArray(asObj(asObj(readBack)?.task) ?? {}, ["customFieldData"]) ?? [])
-    .map(asObj)
-    .find((e) => asObj(e?.field)?.id === ESTIMATION_SUMMARY_FIELD_ID);
+  const summary = findCustomFieldEntry(readBack, ESTIMATION_SUMMARY_FIELD_ID);
   const total = summary?.stringValue ?? summary?.value ?? "unknown (summary field not returned)";
 
   return [

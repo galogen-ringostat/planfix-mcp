@@ -54,7 +54,7 @@ stdout is reserved exclusively for JSON-RPC frames. **Never `console.log` to std
 
 Sources: [Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents), [anthropics/skills → mcp-builder](https://github.com/anthropics/skills/tree/main/skills/mcp-builder).
 
-1. **Naming**: snake_case, action verb first (`get_`, `list_`, `search_`, `create_`, `update_`), consistent with the existing 20 tools. Prefer search-shaped tools over list-everything tools.
+1. **Naming**: snake_case, action verb first (`get_`, `list_`, `search_`, `create_`, `update_`), consistent with the existing tool set (36 as of P12). Prefer search-shaped tools over list-everything tools.
 2. **Consolidate, don't wrap**: model tools on real workflows (one composite tool can beat three chained CRUD calls). Fewer, more thoughtful tools > full API coverage.
 3. **Descriptions**: write for a new hire — what it does, when to use it, when NOT to, expected input formats with an example. Descriptions must match actual behavior exactly.
 4. **Schemas**: Zod on every input; unambiguous parameter names (`task_id`, not `id` where ambiguous); validate sizes/ranges.

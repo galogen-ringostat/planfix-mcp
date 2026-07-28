@@ -142,10 +142,12 @@ export async function planfixUploadFile(filename: string, data: Uint8Array): Pro
       signal: controller.signal,
     });
     const text = await response.text();
-    const parsed = text ? JSON.parse(text) : {};
+    // ok-check BEFORE parsing: a non-JSON error body (e.g. an HTML 502 page)
+    // must surface as the HTTP error, not a SyntaxError (audit E2).
     if (!response.ok) {
       throw new Error(`Planfix HTTP ${response.status}: ${response.statusText} ${text}`.trim());
     }
+    const parsed = text ? JSON.parse(text) : {};
     if (isFailEnvelope(parsed)) {
       throw new Error(`Planfix API error ${parsed.code ?? "?"}: ${parsed.error ?? "unknown error"}`);
     }

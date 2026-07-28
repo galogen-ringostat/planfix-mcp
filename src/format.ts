@@ -2,9 +2,10 @@
 // Every renderer is tolerant: when the response shape is unknown it falls back
 // to raw JSON, so nothing is lost and no structure is invented.
 
-type Json = Record<string, unknown>;
+export type Json = Record<string, unknown>;
 
-function obj(v: unknown): Json | undefined {
+/** Narrow an unknown to a plain object (exported for src/util.ts re-export — audit D1). */
+export function obj(v: unknown): Json | undefined {
   return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined;
 }
 

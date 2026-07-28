@@ -2,6 +2,7 @@ import { z } from "zod";
 import { planfixPost } from "../client.js";
 import { assertTaskInTestProject } from "../safemode.js";
 import { formatTimeEntryList, jsonFallback, findArray } from "../format.js";
+import { HHMM, toMin, toHHMM, fmtDur, isoDate, isoToPlanfixDate, obj } from "../util.js";
 
 // Data tag 59 "Time spent" — the org's time-logging analytic. The data tag id,
 // field ids, value formats, and endpoint behavior were verified live against
@@ -16,12 +17,9 @@ const FIELD_COMMENT = 181; // "Comment" — short text
 
 const TIME_ENTRY_TYPES = ["Task", "Meeting", "Feedback", "Edits"] as const;
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 export const addTimeEntrySchema = z.object({
   taskId: z.number().int().positive().describe("Task ID"),
-  date: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-24")
+  date: isoDate("date", "2026-07-24")
     .describe("Date the time is logged for (ISO, YYYY-MM-DD)"),
   timeFrom: z.string()
     .regex(HHMM, "timeFrom must be a 24-hour time in HH:MM format, e.g. 09:30")
@@ -49,7 +47,6 @@ async function writeTimeEntry(
 ): Promise<{ key: unknown; commentId: unknown; raw: unknown }> {
   await assertTaskInTestProject(tool, params.taskId);
 
-  const [y, m, d] = params.date.split("-");
   // Without commentId Planfix creates a new comment holding the entry; with
   // commentId the entry is appended to that comment (one comment per logging
   // period holds several entries — the operator's convention).
@@ -62,7 +59,7 @@ async function writeTimeEntry(
     items: [{
       customFieldData: [
         { field: { id: FIELD_USER }, value: [{ id: `user:${params.userId}` }] },
-        { field: { id: FIELD_DATE }, value: { date: `${d}-${m}-${y}` } },
+        { field: { id: FIELD_DATE }, value: { date: isoToPlanfixDate(params.date) } },
         { field: { id: FIELD_TIME }, value: { from: { time: params.timeFrom }, to: { time: params.timeTo } } },
         { field: { id: FIELD_TYPE }, value: params.type },
         { field: { id: FIELD_COMMENT }, value: params.comment },
@@ -115,8 +112,7 @@ const EXCLUSIONS_REQUIRED_MSG =
   '(e.g. [{ timeFrom: "13:00", timeTo: "13:45", label: "lunch" }]), or [] to log straight through with no cut-outs.';
 
 export const logWorkdaySchema = z.object({
-  date: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-24")
+  date: isoDate("date", "2026-07-24")
     .describe("The day being logged (ISO, YYYY-MM-DD)"),
   userId: z.number().int().positive().describe("ID of the employee whose time is logged. Find it with the list_users tool"),
   entries: z.array(workdayEntrySchema).min(1).describe("All intervals of the day, any task mix"),
@@ -142,17 +138,6 @@ type Segment = {
 /** Normalized (merged) exclusion window. */
 type Window = { from: number; to: number; label: string };
 
-const toMin = (hhmm: string): number => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-};
-const toHHMM = (min: number): string =>
-  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-const fmtDur = (min: number): string => {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
-};
 const segLabel = (s: Segment): string =>
   `${toHHMM(s.from)}-${toHHMM(s.to)}${s.splitBy.length ? ` (auto-split: ${s.splitBy.join(", ")})` : ""}`;
 const windowLabel = (w: Window): string => `${toHHMM(w.from)}-${toHHMM(w.to)} (${w.label})`;
@@ -416,23 +401,18 @@ const REPORT_FIELDS = `key,${FIELD_USER},${FIELD_DATE},${FIELD_TIME}`;
 const REPORT_MAX_USERS = 10;
 const REPORT_MAX_DAYS = 92;
 const REPORT_MAX_PAGES_PER_USER = 10; // × 100 rows — totals become "N+" lower bounds when hit
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const getTimeReportSchema = z.object({
   userIds: z.array(z.number().int().positive()).min(1).max(REPORT_MAX_USERS)
     .describe(`Employee IDs to report on (1-${REPORT_MAX_USERS}). Find ids with list_users. No team roster exists in code — pass everyone you need`),
-  dateFrom: z.string().regex(ISO_DATE, "dateFrom must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
+  dateFrom: isoDate("dateFrom", "2026-07-01")
     .describe("Range start (ISO, YYYY-MM-DD, inclusive)"),
-  dateTo: z.string().regex(ISO_DATE, "dateTo must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-31")
+  dateTo: isoDate("dateTo", "2026-07-31")
     .describe("Range end (ISO, YYYY-MM-DD, inclusive)"),
-  workingDays: z.array(z.string().regex(ISO_DATE, "each workingDays item must be an ISO date in YYYY-MM-DD format")).optional()
+  workingDays: z.array(isoDate("each workingDays item")).optional()
     .describe("Explicit working-day calendar (ISO dates inside the range): unlogged days are computed against this list instead of the default Mon-Fri. No calendar exists in code"),
 });
 
-const isoToDdMmYyyy = (iso: string): string => {
-  const [y, m, d] = iso.split("-");
-  return `${d}-${m}-${y}`;
-};
 const ddMmYyyyToIso = (dmy: string): string | undefined => {
   const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(dmy);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
@@ -448,10 +428,6 @@ const isWeekday = (ms: number): boolean => {
   return dow >= 1 && dow <= 5;
 };
 
-type Obj = Record<string, unknown>;
-const asObj = (v: unknown): Obj | undefined =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined;
-
 type UserReport = {
   userId: number;
   name?: string;
@@ -465,7 +441,7 @@ async function collectUserEntries(userId: number, dateFrom: string, dateTo: stri
   const report: UserReport = { userId, entryCount: 0, totalSec: 0, perDay: new Map(), capped: false };
   const filters = [
     { type: FILTER_USER_LIST_FIELD, field: FIELD_USER, operator: "equal", value: `user:${userId}` },
-    { type: FILTER_DATE_FIELD, field: FIELD_DATE, operator: "equal", value: { dateType: "otherRange", dateFrom: isoToDdMmYyyy(dateFrom), dateTo: isoToDdMmYyyy(dateTo) } },
+    { type: FILTER_DATE_FIELD, field: FIELD_DATE, operator: "equal", value: { dateType: "otherRange", dateFrom: isoToPlanfixDate(dateFrom), dateTo: isoToPlanfixDate(dateTo) } },
   ];
   for (let page = 0; page < REPORT_MAX_PAGES_PER_USER; page++) {
     const resp = await planfixPost("datatag/59/entry/list", {
@@ -476,16 +452,16 @@ async function collectUserEntries(userId: number, dateFrom: string, dateTo: stri
     });
     const items = findArray(resp, ["dataTagEntries", "entries"]) ?? [];
     for (const item of items) {
-      const e = asObj(item);
+      const e = obj(item);
       let iso: string | undefined;
       let sec = 0;
-      for (const cf of (findArray(e ?? {}, ["customFieldData"]) ?? []).map(asObj)) {
-        const fid = asObj(cf?.field)?.id;
+      for (const cf of (findArray(e ?? {}, ["customFieldData"]) ?? []).map(obj)) {
+        const fid = obj(cf?.field)?.id;
         if (fid === FIELD_DATE) {
-          const raw = asObj(cf?.value)?.date ?? cf?.stringValue;
+          const raw = obj(cf?.value)?.date ?? cf?.stringValue;
           if (typeof raw === "string") iso = ddMmYyyyToIso(raw);
         } else if (fid === FIELD_TIME) {
-          const dur = asObj(cf?.value)?.durationSec;
+          const dur = obj(cf?.value)?.durationSec;
           if (typeof dur === "number") sec = dur;
         } else if (fid === FIELD_USER && report.name === undefined) {
           const n = cf?.stringValue;

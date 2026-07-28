@@ -3,6 +3,7 @@ import { planfixPost, planfixGet } from "../client.js";
 import { formatTaskList, formatSingleTask, formatCreated, formatUpdated, formatTaskFull, formatTaskSearchList } from "../format.js";
 import { postListPage } from "../paging.js";
 import { assertCreateTaskAllowed, assertTaskInTestProject } from "../safemode.js";
+import { isoDate, isoToPlanfixDate } from "../util.js";
 
 // Without an explicit `fields` Planfix returns near-empty (id-only) objects,
 // so a meaningful field set is always requested.
@@ -174,8 +175,7 @@ export const searchTasksSchema = z.object({
   assigneeId: z.number().int().positive().optional().describe("Assignee (employee) ID. Find it with the list_users tool"),
   statusId: z.number().int().positive().optional().describe("Task status ID"),
   projectId: z.number().int().positive().optional().describe("Project ID"),
-  updatedSince: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "updatedSince must be an ISO date in YYYY-MM-DD format, e.g. 2026-07-01")
+  updatedSince: isoDate("updatedSince", "2026-07-01")
     .optional()
     .describe("Only tasks changed or commented after this date (ISO, YYYY-MM-DD)"),
   customField: z.object({
@@ -197,8 +197,7 @@ export async function handleSearchTasks(params: z.infer<typeof searchTasksSchema
   if (params.statusId !== undefined) filters.push({ type: 10, operator: "equal", value: params.statusId });
   if (params.projectId !== undefined) filters.push({ type: 5, operator: "equal", value: params.projectId });
   if (params.updatedSince !== undefined) {
-    const [y, m, d] = params.updatedSince.split("-");
-    filters.push({ type: 79, operator: "gt", value: { dateType: "otherDate", dateValue: `${d}-${m}-${y}` } });
+    filters.push({ type: 79, operator: "gt", value: { dateType: "otherDate", dateValue: isoToPlanfixDate(params.updatedSince) } });
   }
   if (params.customField !== undefined) {
     filters.push({ type: 106, operator: "equal", value: params.customField.value, field: params.customField.fieldId });

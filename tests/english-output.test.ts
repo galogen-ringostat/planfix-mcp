@@ -39,6 +39,7 @@ describe("English-only server text", () => {
     const outputs = [
       f.formatTaskList(empty, 50, 0, false),
       f.formatTaskList(three("tasks"), 2, 0, true),
+      f.formatTaskList({ tasks: [{ ...item, customFieldData: [{ field: { id: 1, name: "Field" }, value: 5, stringValue: "5 h" }] }] }, 50, 0, false),
       f.formatSingleTask({ task: { ...item, description: "d", priority: 1, assignees: { users: [{ id: 5, name: "N" }] }, endDateTime: { date: "01-01-2026" } } }),
       f.formatTaskSearchList(empty, 50, 0, false),
       f.formatTaskSearchList(three("tasks"), 2, 0, true),
@@ -61,6 +62,8 @@ describe("English-only server text", () => {
       }),
       f.formatUserList({ users: [{ id: 1, name: "U", email: "u@x.com", position: { id: 1, name: "Dev" } }] }, 50, 0, true),
       f.formatCommentList(empty, 50, 0, false),
+      f.formatCommentList({ comments: [{ id: 9, owner: { id: 1, name: "A" }, dateTime: { date: "01-01-2026" }, description: "t", files: [{ id: 7, size: 3, name: "doc.pdf" }] }] }, 50, 0, false),
+      f.formatFile({ file: { id: 7, size: 3, name: "doc.pdf", downloadUrl: "https://s3/x" } }),
       f.formatDirectoryList(empty, 50, 0, false),
       f.formatDirectoryEntryList(empty, 50, 0, false),
       f.formatCustomFieldList({ customFields: [{ id: 1, name: "F", type: { id: 2, name: "T" } }] }, 50, 0, false),

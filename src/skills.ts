@@ -12,8 +12,9 @@ export function skillMyTasks(server: McpServer): void {
           content: {
             type: "text" as const,
             text: [
-              "Use the get_tasks tool to fetch the tasks.",
-              "From the resulting list keep only the tasks where:",
+              "Find the current user's employee ID with list_users, then call search_tasks with assigneeId set to it",
+              "(fall back to get_tasks paging only if the assignee is unknown).",
+              "From the results keep only the tasks where:",
               "1. endDate is today or already past (overdue)",
               "2. The task is not in a completed/closed status",
               "",

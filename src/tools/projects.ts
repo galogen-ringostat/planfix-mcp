@@ -8,6 +8,7 @@ import {
   formatSingleProject,
 } from "../format.js";
 import { postListPage } from "../paging.js";
+import { obj, isoToPlanfixDate } from "../util.js";
 
 const PROJECT_FIELDS = "id,name,description,status";
 // GET project/{id} default is wider than the list default: the single-project
@@ -118,10 +119,6 @@ export const getProjectOverviewSchema = z.object({
     .describe(`Max recently-updated tasks listed (default ${DEFAULT_RECENT_LIMIT})`),
 });
 
-type Obj = Record<string, unknown>;
-const asObj = (v: unknown): Obj | undefined =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined;
-
 /** Count tasks by status across up to SCAN_CAP tasks (sequential pages). */
 async function scanTaskCounts(projectId: number): Promise<{
   scanned: number; scanCapped: boolean; activeCount: number; closedCount: number;
@@ -139,7 +136,7 @@ async function scanTaskCounts(projectId: number): Promise<{
     });
     const tasks = findArray(resp, ["tasks"]) ?? [];
     for (const t of tasks) {
-      const status = asObj(asObj(t)?.status);
+      const status = obj(obj(t)?.status);
       const name = typeof status?.name === "string" && status.name.length
         ? status.name
         : `status #${status?.id ?? "?"}`;
@@ -161,7 +158,7 @@ function sortCounts(m: Map<string, number>): Array<[string, number]> {
 
 /** UTC timestamp for sorting; falls back to the rendered date string. */
 function lastUpdateKey(t: unknown): string {
-  const d = asObj(asObj(t)?.dateOfLastUpdate);
+  const d = obj(obj(t)?.dateOfLastUpdate);
   return (typeof d?.dateTimeUtcSeconds === "string" && d.dateTimeUtcSeconds)
     || (typeof d?.datetime === "string" && d.datetime)
     || "";
@@ -172,7 +169,7 @@ export async function handleGetProjectOverview(params: z.infer<typeof getProject
   const recentLimit = params.recentLimit ?? DEFAULT_RECENT_LIMIT;
 
   const since = new Date(Date.now() - recentDays * 86_400_000);
-  const dateValue = `${String(since.getUTCDate()).padStart(2, "0")}-${String(since.getUTCMonth() + 1).padStart(2, "0")}-${since.getUTCFullYear()}`;
+  const dateValue = isoToPlanfixDate(since.toISOString().slice(0, 10));
 
   const [projectResp, counts, recentResp] = await Promise.all([
     planfixGet(`project/${params.projectId}`, { fields: OVERVIEW_PROJECT_FIELDS }),

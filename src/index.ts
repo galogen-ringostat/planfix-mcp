@@ -69,7 +69,7 @@ export function createPlanfixServer(): McpServer {
     {
       description:
         "Create a new task in Planfix. " +
-        "Find assigneeId via list_users and projectId via get_projects first. " +
+        "Find assigneeId via list_users and projectId via search_projects (or get_projects) first. " +
         'Input example: { name: "Prepare report", projectId: 45, assigneeId: 403 }.',
       inputSchema: createTaskSchema.shape,
       annotations: ADDITIVE_WRITE,
